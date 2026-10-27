@@ -62,10 +62,17 @@ api="https://api.telegram.org/bot${BOT_TOKEN}"
 response="$(mktemp)"
 trap 'rm -f "$response"' EXIT
 
+# IMPORTANT: do NOT use --retry-all-errors here.
+# curl's generic retry re-sends the whole multipart request, but the local
+# APK file streams may already be consumed by the first attempt. Telegram
+# then receives attach://fileN references without the actual file data and
+# replies 400 "media not found". Only retry on connection failures, which
+# happen before any request body is sent.
 common_args=(
   --silent --show-error --fail-with-body
-  --retry 3 --retry-delay 2 --retry-all-errors
+  --retry 2 --retry-delay 2 --retry-connrefused
   --connect-timeout 30 --max-time 1800
+  -H "Expect:"
   -o "$response"
   -F "chat_id=${CHAT_ID}"
 )
@@ -73,45 +80,54 @@ if [[ -n "${MESSAGE_THREAD_ID:-}" ]]; then
   common_args+=(-F "message_thread_id=${MESSAGE_THREAD_ID}")
 fi
 
+# Helper: run curl, and on failure print the Telegram response body so the
+# exact "description" shows up in the workflow log instead of only "curl: (22)".
+run_curl() {
+  if ! curl "${common_args[@]}" "$@"; then
+    echo "[-] curl failed, Telegram response:" >&2
+    jq . "$response" >&2 2>/dev/null || cat "$response" >&2
+    return 1
+  fi
+}
+
 if (( $# == 1 )); then
   echo "[+] Uploading 1 APK through Telegram Bot API"
-  curl "${common_args[@]}" \
+  run_curl \
     -F "document=@$1;type=application/vnd.android.package-archive" \
     -F "caption=${caption}" \
     -F "parse_mode=HTML" \
     "${api}/sendDocument"
 else
-  media='[]'
   upload_args=()
+  json_items=()
   index=0
   last_index=$(($# - 1))
 
   for file in "$@"; do
     field="file${index}"
     upload_args+=(-F "${field}=@${file};type=application/vnd.android.package-archive")
+    
+    # 构建单个 JSON 对象项
     if (( index == last_index )); then
-      media="$(jq -cn \
-        --argjson current "$media" \
-        --arg attachment "attach://${field}" \
-        --arg caption "$caption" \
-        '$current + [{type: "document", media: $attachment, caption: $caption, parse_mode: "HTML"}]')"
+      json_items+=("$(jq -cn --arg attachment "attach://${field}" --arg caption "$caption" \
+        '{type: "document", media: $attachment, caption: $caption, parse_mode: "HTML"}')")
     else
-      media="$(jq -cn \
-        --argjson current "$media" \
-        --arg attachment "attach://${field}" \
-        '$current + [{type: "document", media: $attachment}]')"
+      json_items+=("$(jq -cn --arg attachment "attach://${field}" \
+        '{type: "document", media: $attachment}')")
     fi
     ((index += 1))
   done
 
+  media="$(printf '%s\n' "${json_items[@]}" | jq -cs '.')"
+
   echo "[+] Uploading $# APKs in one Telegram media group"
-  curl "${common_args[@]}" \
-    -F "media=${media}" \
+  run_curl \
+    -F "media=${media};type=application/json" \
     "${upload_args[@]}" \
     "${api}/sendMediaGroup"
 fi
 
-if ! jq -e '.ok == true' "$response" >/dev/null; then
+if ! jq -e '.ok == true' "$response" >/dev/null 2>&1; then
   echo "[-] Telegram API rejected the upload:" >&2
   jq . "$response" >&2 || cat "$response" >&2
   exit 1

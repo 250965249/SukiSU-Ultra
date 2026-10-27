@@ -23,11 +23,17 @@ import java.security.SecureRandom
 
 private const val SETTINGS_PREFS = "settings"
 private const val KEY_USE_SOFT_REBOOT = "soft_reboot"
+private const val KEY_AUTO_DELETE_MODULE_ZIP = "auto_delete_module_zip"
 
 /** Prefer soft reboot: always in jailbreak mode, or when the setting is enabled. */
 fun isSoftRebootPreferred(): Boolean =
     Natives.isLateLoadMode || ksuApp.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
         .getBoolean(KEY_USE_SOFT_REBOOT, false)
+
+/** Delete module ZIPs downloaded by the manager once they have been installed successfully. */
+fun isAutoDeleteModuleZipEnabled(): Boolean =
+    ksuApp.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+        .getBoolean(KEY_AUTO_DELETE_MODULE_ZIP, false)
 
 class SettingsRepositoryImpl : SettingsRepository {
 
@@ -78,6 +84,10 @@ class SettingsRepositoryImpl : SettingsRepository {
     override var checkModuleUpdate: Boolean
         get() = prefs.getBoolean("module_check_update", true)
         set(value) = prefs.edit { putBoolean("module_check_update", value) }
+
+    override var autoDeleteModuleZip: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_DELETE_MODULE_ZIP, false)
+        set(value) = prefs.edit { putBoolean(KEY_AUTO_DELETE_MODULE_ZIP, value) }
 
     override var alternativeIcon : Boolean
         get() = prefs.getBoolean("use_alt_icon", false)
@@ -208,6 +218,10 @@ class SettingsRepositoryImpl : SettingsRepository {
     override var showFullStatus: Boolean
         get() = prefs.getBoolean("show_fingerprint", true)
         set(value) = prefs.edit { putBoolean("show_fingerprint", value) }
+
+    override var hideHomeWarnings: Boolean
+        get() = prefs.getBoolean("hide_home_warnings", false)
+        set(value) = prefs.edit { putBoolean("hide_home_warnings", value) }
 
     override var autoJailbreak: Boolean
         get() = prefs.getBoolean("auto_jailbreak", false)

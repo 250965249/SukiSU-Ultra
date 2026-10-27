@@ -59,6 +59,7 @@ import androidx.compose.material.icons.rounded.DesignServices
 import androidx.compose.material.icons.rounded.Pin
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.Style
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Swipe
@@ -400,6 +401,15 @@ fun ColorPaletteScreenMaterial(
                                 summary = stringResource(id = R.string.settings_show_fullstatus_summary),
                                 checked = state.showFullStatus,
                                 onCheckedChange = actions.onSetShowFullStatus
+                            )
+                        },
+                        {
+                            SegmentedSwitchItem(
+                                icon = Icons.Rounded.Warning,
+                                title = stringResource(id = R.string.settings_hide_home_warnings),
+                                summary = stringResource(id = R.string.settings_hide_home_warnings_summary),
+                                checked = state.hideHomeWarnings,
+                                onCheckedChange = actions.onSetHideHomeWarnings
                             )
                         },
                         {

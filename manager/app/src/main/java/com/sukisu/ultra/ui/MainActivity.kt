@@ -97,6 +97,7 @@ import com.sukisu.ultra.ui.screen.appprofile.AppProfileScreen
 import com.sukisu.ultra.ui.screen.colorpalette.ColorPaletteScreen
 import com.sukisu.ultra.ui.screen.dynamicmanagers.DynamicManagersScreen
 import com.sukisu.ultra.ui.screen.extensions.ExtensionsScreen
+import com.sukisu.ultra.ui.screen.extensions.VersionSpoofScreen
 import com.sukisu.ultra.ui.screen.executemoduleaction.ExecuteModuleActionScreen
 import com.sukisu.ultra.ui.screen.flash.FlashScreen
 import com.sukisu.ultra.ui.screen.home.HomePager
@@ -121,6 +122,7 @@ import com.sukisu.ultra.ui.theme.LocalEnableFloatingBottomBar
 import com.sukisu.ultra.ui.theme.LocalEnableFloatingBottomBarBlur
 import com.sukisu.ultra.ui.theme.LocalEnableNavigationBadge
 import com.sukisu.ultra.ui.theme.LocalModuleDescriptionMaxLines
+import com.sukisu.ultra.ui.util.LocaleHelper
 import com.sukisu.ultra.ui.util.getSuperuserCount
 import com.sukisu.ultra.ui.util.install
 import com.sukisu.ultra.ui.util.rememberBlurBackdrop
@@ -153,7 +155,7 @@ class MainActivity : ComponentActivity() {
 
 
     override fun attachBaseContext(newBase: android.content.Context) {
-        super.attachBaseContext(com.sukisu.ultra.ui.util.LocaleHelper.wrap(newBase))
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
     }
 
     @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
@@ -364,6 +366,7 @@ class MainActivity : ComponentActivity() {
                                 entry<Route.UmountManager>(swipeDismiss = swipeDismiss)  { UmountManagerScreen() }
                                 entry<Route.DynamicManagers>(swipeDismiss = swipeDismiss) { DynamicManagersScreen() }
                                 entry<Route.Extensions>(swipeDismiss = swipeDismiss) { ExtensionsScreen() }
+                                entry<Route.VersionSpoof>(swipeDismiss = swipeDismiss) { VersionSpoofScreen() }
                         }
                     }
 

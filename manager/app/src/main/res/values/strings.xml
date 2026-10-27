@@ -58,7 +58,7 @@
     <string name="module_repo_update_available">Update</string>
     <string name="module_repo_installed">Installed</string>
     <string name="module_repo_using_cache">Couldn\'t refresh the repository, showing the last downloaded copy</string>
-    <string name="module_repo_unsupported_schema">The module repository uses a newer format. Please update KernelSU Manager.</string>
+    <string name="module_repo_unsupported_schema">The module repository uses a newer format. Please update SukiSU Manager.</string>
     <string name="module_repo_load_failed">Failed to load the module repository</string>
     <string name="module_repo_empty">No modules available</string>
     <string name="module_repo_not_in_index">This module is not in the repository index right now and can\'t be installed from here.</string>
@@ -116,7 +116,7 @@
     <string name="home_learn_kernelsu_url">https://sukisu.org/guide/</string>
     <string name="home_click_to_learn_kernelsu">Learn how to install SukiSU and use modules.</string>
     <string name="home_support_title">Support Us</string>
-    <string name="home_support_content">KernelSU is, and always will be, free, and open source. However, you can show us that you care by making a donation.</string>
+    <string name="home_support_content">SukiSU is, and always will be, free, and open source. However, you can show us that you care by making a donation.</string>
     <string name="about_contributors">Main contributors</string>
     <string name="about_contributors_hint">Drag to explore, pinch to zoom, tap an avatar to open the profile.</string>
     <string name="about_wordmark_hint">Every letter is a contributor\'s name. Pinch to zoom in.</string>
@@ -187,6 +187,10 @@
     <string name="settings_pager_gesture_cross_axis">Cross-axis</string>
     <string name="settings_pager_gesture_ios_like">iOS-like</string>
     <string name="settings_module_check_update">Check for module updates</string>
+    <string name="settings_auto_delete_module_zip">Delete module zip after install</string>
+    <string name="settings_auto_delete_module_zip_summary">Automatically delete module zips after a successful installation, including updates, repository installs and files you picked manually.</string>
+    <string name="module_zip_deleted">Module zip deleted: %1$s</string>
+    <string name="module_zip_delete_failed">! Failed to delete module zip: %1$s</string>
     <string name="grant_root_failed">Failed to grant Root!</string>
     <string name="home_pr_build_warning">This is a PR debug build. Do NOT use it in production!</string>
     <string name="home_pr_kernel_warning">The kernel was built with PR signature support. This is not a production kernel!</string>
@@ -236,7 +240,7 @@
     <string name="settings_selinux_hide_reboot_required">Reboot to take effect</string>
     <string name="settings_selinux_hide_failed">Error: %d</string>
     <string name="settings_mount_hide">Hide suspicious mounts</string>
-    <string name="settings_mount_hide_summary">Filter KernelSU and module mount records from the /proc mount views of isolated and app processes</string>
+    <string name="settings_mount_hide_summary">Filter SukiSU and module mount records from the /proc mount views of isolated and app processes</string>
     <string name="settings_mount_hide_reboot_required">Reboot to take effect</string>
     <string name="settings_mount_hide_failed">Error: %d</string>
     <string name="settings_sulog">SU Log</string>
@@ -342,7 +346,7 @@
     <string name="settings_adb_root" translatable="false">ADB Root</string>
     <string name="settings_adb_root_summary">Run adbd daemon with Root privileges</string>
     <string name="settings_shell_su_adb_only">Restrict shell root to ADB</string>
-    <string name="settings_shell_su_adb_only_summary">Extra check when Shell is granted root: only processes spawned by adbd or a KernelSU root process (e.g. an ADB module) can use it, preventing apps that obtain shell privileges from escalating to root</string>
+    <string name="settings_shell_su_adb_only_summary">Extra check when Shell is granted root: only processes spawned by adbd or a SukiSU root process (e.g. an ADB module) can use it, preventing apps that obtain shell privileges from escalating to root</string>
     <string name="menu_sort">Sort</string>
     <string name="sort_by_name">Application name</string>
     <string name="sort_by_package_name">Package name</string>
@@ -457,8 +461,6 @@
     <string name="kpm_patch_description">For adding additional KPM features</string>
     <string name="enable_kpm_patch">KPM Patch</string>
     <string name="enable_kpm_undo_patch">KPM Undo Patch</string>
-    <string name="kpm_patch_enabled">KPM patch enabled</string>
-    <string name="kpm_undo_patch_enabled">KPM undo patch enabled</string>
     <string name="kpm_patch_mode">KPM Patch Mode</string>
     <string name="kpm_undo_patch_mode">KPM Undo Patch Mode</string>
     <string name="kpm_preparing_tools">Preparing KPM tools</string>
@@ -467,39 +469,52 @@
     <string name="kpm_found_image_file">Found Image file: %s</string>
     <string name="kpm_patch_success">KPM patch applied successfully</string>
     <string name="kpm_undo_patch_success">KPM patch undone successfully</string>
+    <string name="kpm_undo_patch_not_found">No KPM patch found; keeping the original kernel</string>
     <string name="kpm_file_repacked">File repacked successfully</string>
     <string name="kpm_extract_zip_failed">Failed to extract zip file</string>
     <string name="kpm_image_file_not_found">Image file not found</string>
-    <string name="kpm_patch_failed">KPM patch failed</string>
-    <string name="kpm_undo_patch_failed">KPM undo patch failed</string>
     <string name="kpm_patch_operation_failed">KPM patch operation failed: %s</string>
     <string name="kpm_follow_kernel_file">Follow Kernel</string>
+    <string name="install_kpm_manual">Manually select boot.img (optional)</string>
+    <string name="install_kpm_auto">Automatic: follow the installation method</string>
+    <string name="install_kpm_auto_current_boot">Automatically extract boot from the current slot</string>
+    <string name="install_kpm_clear">Clear selection and use automatic boot</string>
+    <string name="install_kpm_operation">KPM operation</string>
+    <string name="install_kpm_summary">Keep, apply, or undo the kernel KPM patch.</string>
+    <string name="install_kpm_inactive_unsupported">Additional KPM operations currently support direct installation to the current slot only. Disable KPM before installing to the inactive slot.</string>
     <string name="kernel_flashing">Kernel Flashing</string>
     <string name="horizon_kernel">AnyKernel3 Kernel</string>
     <string name="horizon_kernel_summary">Flash AnyKernel3 format kernel zip</string>
+    <string name="external_kernel_flash_prompt">Flash the AnyKernel3 kernel ?%1$s?? Confirm that it is compatible with your device. You will select the slot and KPM mode before flashing.</string>
+    <string name="external_kernel_separate_files">Open one kernel ZIP at a time, separately from module files.</string>
     <!-- KPM -->
     <string name="kpm_title">KPM</string>
+    <string name="kpm_modules_title">Kernel modules</string>
+    <string name="kpm_overview_description">Manage modules loaded into the running kernel</string>
+    <string name="kpm_loaded_count">%1$d loaded</string>
+    <string name="kpm_search">Search kernel modules</string>
+    <string name="kpm_search_empty">No matching kernel modules</string>
+    <string name="kpm_clear_search">Clear search</string>
+    <string name="kpm_refresh_failed">Could not refresh kernel modules</string>
+    <string name="kpm_retry">Retry</string>
+    <string name="kpm_working">Processing, please wait…</string>
     <string name="kpm_empty">No installed kernel modules at this time</string>
     <string name="kpm_uninstall">Uninstall</string>
-    <string name="kpm_uninstall_success">Uninstalled successfully</string>
-    <string name="kpm_uninstall_failed">Failed to uninstall</string>
-    <string name="kpm_install_success">Load of KPM module successful</string>
     <string name="kpm_install_failed">Load of KPM module failed</string>
     <string name="kpm_args">Parameters</string>
     <string name="kpm_control">Execute</string>
     <string name="close_notice">Close</string>
     <string name="kernel_module_notice">The following kernel module functions were developed by KernelPatch and modified to include the kernel module functions of SukiSU</string>
     <string name="kpm_control_success">Success</string>
-    <string name="kpm_control_failed">Failed</string>
     <string name="not_supported">Unsupported</string>
     <string name="kpm_install_mode">KPM Install</string>
     <string name="kpm_install_mode_load">Load</string>
     <string name="kpm_install_mode_embed">Embed</string>
-    <string name="kpm_install_mode_description">Please select: %1\$s Module Installation Mode \n\nLoad: Temporarily load the module \nEmbedded: Permanently install into the system</string>
+    <string name="kpm_load_description">Load for this boot only. The module will be unloaded after restarting.</string>
+    <string name="kpm_embed_description">Load now and save for automatic loading at startup. Only install modules you trust.</string>
     <string name="invalid_file_type">Incorrect file type! Please select .kpm file</string>
     <string name="confirm_uninstall_title_with_filename">Uninstall</string>
     <string name="confirm_uninstall_content">The following KPM will be uninstalled: %s</string>
-    <string name="snackbar_failed_to_check_module_file">Unable to check if module file exists</string>
     <string name="cancel">Cancel</string>
     <!-- Tools -->
     <string name="settings_tools">Tools</string>
@@ -545,13 +560,14 @@
     <!-- Zip Install Prompts -->
     <!-- SuSFS Configuration -->
     <string name="susfs_config_title">SuSFS Configuration</string>
-    <string name="susfs_config_summary">Configure SuSFS module settings</string>
     <string name="susfs_config_description">Configuration Description</string>
     <string name="susfs_config_description_text">This feature allows you to customize the SuSFS uname value and build time spoofing. Enter the values you want to set and click Apply to take effect</string>
+    <string name="susfs_runtime_unknown">Unknown</string>
+    <string name="susfs_runtime_version">Version</string>
+    <string name="susfs_runtime_variant">Kernel variant</string>
+    <string name="susfs_runtime_implementation">Implementation</string>
     <string name="susfs_uname_label">Kernel Release</string>
     <string name="susfs_build_time_label">Kernel Version</string>
-    <string name="susfs_current_value">Current release: %s</string>
-    <string name="susfs_current_build_time">Current version: %s</string>
     <string name="susfs_apply">Apply</string>
     <!-- SuSFS Reset Confirmation -->
     <string name="susfs_reset_confirm_title">Confirm Reset</string>
@@ -563,6 +579,7 @@
     <string name="susfs_autostart_requirement">Configuration needs to be added to enable</string>
     <!-- SuSFS Tab Titles -->
     <string name="susfs_tab_basic_settings">Basic Settings</string>
+    <string name="susfs_tab_feature_toggles">Feature toggles</string>
     <string name="susfs_tab_sus_paths">SUS Paths</string>
     <string name="susfs_tab_enabled_features">Enabled Features Status</string>
     <!-- SuSFS Path Management -->
@@ -575,6 +592,7 @@
     <!-- SuSFS Path Settings -->
     <!-- SuSFS Enabled Features -->
     <string name="susfs_enabled_features_description">Display current SuSFS enabled features status</string>
+    <string name="susfs_features_summary">%1$d of %2$d features enabled</string>
     <string name="susfs_no_features_found">No feature status information found</string>
     <string name="susfs_feature_enabled">Enabled</string>
     <string name="susfs_feature_disabled">Disabled</string>
@@ -593,24 +611,32 @@
     <string name="susfs_enable_log_label">SuSFS Enable Log</string>
     <string name="susfs_log_config_description">Enable or disable logging for SuSFS</string>
     <string name="susfs_log_config_title">SuSFS Logging Configuration</string>
+    <string name="susfs_priority_uid_filter">Priority UID filter</string>
+    <string name="susfs_priority_uid_filter_description">Hide selected app UIDs from getpriority/setpriority and ioprio_get/ioprio_set queries made by other apps. Each apply replaces the entire list. The kernel re-resolves package UIDs when apps are installed or removed.</string>
+    <string name="susfs_priority_uid_filter_warning">Requires a SuSFS kernel with priority UID filter support. Only app IDs 10000-19999 are supported; unresolved packages cause the operation to fail. Saved settings are not a runtime status query. Enable auto-start to restore them after reboot.</string>
+    <string name="susfs_priority_uid_filter_apps">Selected packages</string>
+    <string name="susfs_priority_uid_filter_empty">No packages selected</string>
+    <string name="susfs_priority_uid_filter_select">Select apps</string>
+    <string name="susfs_priority_uid_filter_clear">Clear filter</string>
     <string name="susfs_execution_location_label">Execution Location</string>
-    <string name="susfs_current_execution_location">Current execution location: %s</string>
     <string name="susfs_execution_location_service">Service</string>
     <string name="susfs_execution_location_post_fs_data">Post-FS-Data</string>
     <string name="susfs_slot_info_title">Slot Information</string>
     <string name="susfs_slot_info_description">View current boot slot information and copy values</string>
-    <string name="susfs_current_active_slot">Current Active Slot: %s</string>
-    <string name="susfs_slot_uname">Uname: %s</string>
-    <string name="susfs_slot_build_time">Build Time: %s</string>
     <string name="susfs_slot_current_badge">Current</string>
     <string name="susfs_slot_use_uname">Use Uname</string>
     <string name="susfs_slot_use_build_time">Use Build Time</string>
     <string name="susfs_slot_info_unavailable">Unable to retrieve slot information</string>
+    <string name="susfs_slot_draft_hint">Fill values into the editor, then apply them from Basic settings. Unavailable fields cannot be used. Compressed kernel images may not expose readable version information.</string>
+    <string name="susfs_slot_value_filled">Filled into editor</string>
     <!-- SuSFS Kstat Related Strings -->
     <string name="susfs_tab_kstat_config">Kstat Configuration</string>
     <string name="add_kstat_statically_title">Add Kstat Static Configuration</string>
     <string name="file_or_directory_path_label">File/Directory path</string>
     <string name="hint_use_default_value">Hint: You can use "default" to use the original value</string>
+    <string name="kstat_section_identity">Identity</string>
+    <string name="kstat_section_timestamps">Timestamps</string>
+    <string name="kstat_section_storage">Storage</string>
     <string name="add_kstat_path_title">Add Kstat Path</string>
     <string name="add">Add</string>
     <string name="reset_kstat_config_title">Reset Kstat Configuration</string>
@@ -667,9 +693,6 @@
     <string name="add_custom_path">Other</string>
     <string name="susfs_add_app_path">Add App Path</string>
     <string name="search_apps">Search Apps</string>
-    <string name="selected_apps_count">%1$d apps selected</string>
-    <string name="already_added_apps_count">%1$d apps already added</string>
-    <string name="all_apps_already_added">All apps have been added</string>
     <string name="no_apps_found">No apps found</string>
     <!-- SuSFS Loop Path Related Strings -->
     <string name="susfs_tab_sus_loop_paths">SUS Loop Paths</string>
@@ -690,6 +713,9 @@
     <string name="sus_loop_paths_description_text">Loop paths are re-flagged as SUS_PATH on each non-root user app or isolated service startup. This helps address issues where added paths may have their inode status reset or inode re-created in the kernel</string>
     <string name="avc_log_spoofing">AVC Log Spoofing</string>
     <string name="avc_log_spoofing_description">Disabled: Disable spoofing the sus tcontext of \'su\' shown in avc log in kernel\nEnabled: Enable spoofing the sus tcontext of \'su\' with \'kernel\' shown in avc log in kernel</string>
+    <string name="settings_avc_spoof">AVC log spoofing</string>
+    <string name="settings_avc_spoof_summary">Prevent SELinux context leaks in AVC denial logs</string>
+    <string name="settings_avc_spoof_failed">Failed to apply AVC log spoofing</string>
     <!-- SUS Map Related Strings -->
     <string name="susfs_tab_sus_maps">SUS Maps</string>
     <string name="susfs_sus_map_label">Library Path</string>
@@ -706,11 +732,13 @@
     <string name="sus_maps_warning">Important Notice: For applications with well-implemented injection detection mechanisms, this feature may not effectively bypass detection.</string>
     <string name="sus_maps_debug_info">First, find the target application\'s PID and UID using ps -enf, then check the relevant paths in /proc/&lt;pid&gt;/maps and compare the device numbers with those in /proc/1/mountinfo to ensure consistency. Only when the device numbers match can the map hiding function work properly.</string>
     <string name="icon_switch_title">Alternate icon</string>
-    <string name="icon_switch_summary">Change the launcher icon to KernelSU\'s icon</string>
+    <string name="icon_switch_summary">Change the launcher icon to SukiSU\'s icon</string>
     <string name="refresh">Refresh</string>
     <string name="home_kernel_full_version">Kernel full version</string>
     <string name="settings_show_fullstatus">Show FullStatus</string>
     <string name="settings_show_fullstatus_summary">Display device FullStatus in home page info card</string>
+    <string name="settings_hide_home_warnings">Hide Home Warnings</string>
+    <string name="settings_hide_home_warnings_summary">Hide warning cards on the home page (PR build, kernel/manager update, LKM update, preview mode)</string>
     <string name="home_zygisk_implementation">Zygisk implementation</string>
     <string name="home_zygisk_not_installed">Not installed</string>
     <string name="home_zygisk_disabled">Disabled</string>
@@ -721,11 +749,10 @@
     <string name="module_summary">%1$d enabled · %2$d updatable</string>
     <string name="home_preview_mode">No SukiSU kernel detected. Root access is available, so the pages open in preview mode; kernel features do nothing.</string>
     <string name="dynamic_manager_title">Dynamic managers</string>
-    <string name="dynamic_manager_summary">Manage additional trusted KernelSU managers</string>
+    <string name="dynamic_manager_summary">Manage additional trusted SukiSU managers</string>
     <string name="dynamic_manager_enabled">Dynamic managers enabled</string>
     <string name="dynamic_manager_add">Add manager</string>
     <string name="dynamic_manager_remove">Remove manager</string>
-    <string name="dynamic_manager_select_app">Installed apps</string>
     <string name="dynamic_manager_authorize">Authorize %1$s</string>
     <string name="dynamic_manager_current">Current manager</string>
     <string name="dynamic_manager_default">Default manager</string>
@@ -734,10 +761,8 @@
     <string name="extension_section_title">Extension features</string>
     <string name="extension_section_summary">Kernel extension features</string>
     <string name="extension_status_supported">Supported</string>
-    <string name="extension_status_unsupported">@string/config_status_unsupported</string>
     <string name="extension_status_forced">Forced</string>
     <string name="extension_status_managed">Module-managed</string>
-    <string name="extension_status_enabled">@string/config_status_applied</string>
     <string name="extension_status_disabled">Disabled</string>
     <string name="extension_kpm_title">KPM (Kernel Patch Module)</string>
     <string name="extension_kpm_summary">Load third-party .kpm modules at runtime. Requires a KPM-capable kernel build.</string>
@@ -746,28 +771,17 @@
     <string name="extension_umount_paths_title">Umount path manager</string>
     <string name="extension_umount_paths_summary">Manage the list of mount points the kernel will umount when an app starts.</string>
     <string name="extension_dynamic_manager_title">Dynamic manager</string>
-    <string name="extension_dynamic_manager_summary">Allow more than one app to act as the KernelSU manager, authenticated by signing certificate.</string>
+    <string name="extension_dynamic_manager_summary">Allow more than one app to act as the SukiSU manager, authenticated by signing certificate.</string>
     <string name="extension_susfs_title">SuSFS</string>
     <string name="extension_susfs_summary">Configure hide-mount, spoof uname, redirect-open, kstat and other low-level kernel tricks. Requires the SuSFS kernel module to be installed.</string>
+    <string name="extension_version_spoof_title">SukiSU version overrides</string>
+    <string name="extension_version_spoof_summary">Customize the reported SukiSU version code, full version and UAPI version.</string>
     <string name="extension_open_details">Open details</string>
 
     <!-- Empty state shown when no extension state has been observed
          and the screen is not in the middle of a refresh. -->
     <string name="extension_empty_title">No extension data</string>
     <string name="extension_empty_subtitle">Pull to refresh, or check that the running kernel includes the extension hub.</string>
-    <string name="external_kernel_flash_prompt">Flash the AnyKernel3 kernel ?%1$s?? Confirm that it is compatible with your device. You will select the slot and KPM mode before flashing.</string>
-    <string name="external_kernel_separate_files">Open one kernel ZIP at a time, separately from module files.</string>
-    <string name="susfs_tab_feature_toggles">Feature toggles</string>
-    <string name="susfs_slot_draft_hint">Fill values into the editor, then apply them from Basic settings. Unavailable fields cannot be used. Compressed kernel images may not expose readable version information.</string>
-    <string name="susfs_slot_value_filled">Filled into editor</string>
-    <string name="susfs_features_summary">%1$d of %2$d features enabled</string>
-    <string name="susfs_runtime_unknown">Unknown</string>
-    <string name="susfs_runtime_available">Available</string>
-    <string name="susfs_runtime_unavailable">Unavailable</string>
-    <string name="susfs_runtime_status">Status</string>
-    <string name="susfs_runtime_version">Version</string>
-    <string name="susfs_runtime_variant">Kernel variant</string>
-    <string name="susfs_runtime_implementation">Implementation</string>
     <string name="config_status_applied">Applied</string>
     <string name="config_status_reboot">Saved; takes effect after reboot</string>
     <string name="config_status_unsupported">Not supported by the current kernel</string>
@@ -821,4 +835,22 @@
     <string name="settings_card_background_alpha">Card Opacity</string>
     <string name="settings_card_background_alpha_summary">Adjust background card opacity (%d%%)</string>
     <string name="settings_clear">Clear</string>
+    <string name="version_spoof_warning">Warning: these are real kernel API response overrides, not cosmetic labels. Changing UAPI or version values can break Manager compatibility checks, installation and updates. Reset remains available through ksud.</string>
+    <string name="version_spoof_hint">Blank fields use build values. Saved overrides are restored at boot except in safe mode. Other apps may cache versions; restart them after changing values. Full version: up to 254 UTF-8 bytes.</string>
+    <string name="version_spoof_code">Working version code</string>
+    <string name="version_spoof_full">Full SukiSU version</string>
+    <string name="version_spoof_uapi">Reported UAPI version</string>
+    <string name="version_spoof_ack">I understand the compatibility risks</string>
+    <string name="version_spoof_reset">Restore build values</string>
+    <string name="version_spoof_success">Applied. Restart Manager to refresh cached versions.</string>
+    <string name="version_spoof_compiled_target">Compiled Manager reference: version %1$s, UAPI %2$s. Custom values may differ; confirm the compatibility warning before saving.</string>
+    <string name="version_spoof_original_value">Original: %1$s</string>
+    <string name="version_spoof_back">Back</string>
+    <string name="version_spoof_home_warning">SukiSU version or UAPI differs from this Manager build. Tap to review version settings and recovery instructions.</string>
+    <string name="version_spoof_hide_warning">Hide home-page version warnings</string>
+    <string name="version_spoof_hide_warning_summary">Off by default. Hides version mismatch notices only; compatibility checks remain active.</string>
+    <string name="version_spoof_section_info">Compatibility and build information</string>
+    <string name="version_spoof_section_fields">Reported versions</string>
+    <string name="version_spoof_section_recovery">Warning preferences and recovery</string>
+    <string name="version_spoof_recovery">Restore kernel versions: delete /data/adb/ksu/.version_spoof_config as root, then reboot the device.\n\nShow warnings again: delete /data/adb/ksu/.version_spoof_warning_hidden as root, then restart Manager or reboot. Removing this file does not reset version overrides. If Manager cannot open, use another available root or recovery environment.</string>
 </resources>

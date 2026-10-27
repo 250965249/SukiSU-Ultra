@@ -56,7 +56,9 @@ class SettingsViewModel(
             val pageScale = repo.pageScale
             val moduleDescriptionMaxLines = repo.moduleDescriptionMaxLines
             val enableWebDebugging = repo.enableWebDebugging
+            val autoDeleteModuleZip = repo.autoDeleteModuleZip
             val showFullStatus = repo.showFullStatus
+            val hideHomeWarnings = repo.hideHomeWarnings
             val colorStyle = repo.colorStyle
             val colorSpec = repo.colorSpec
             val isLkmMode = repo.isLkmMode()
@@ -128,7 +130,9 @@ class SettingsViewModel(
                     pageScale = pageScale,
                     moduleDescriptionMaxLines = moduleDescriptionMaxLines,
                     enableWebDebugging = enableWebDebugging,
+                    autoDeleteModuleZip = autoDeleteModuleZip,
                     showFullStatus = showFullStatus,
+                    hideHomeWarnings = hideHomeWarnings,
                     colorStyle = colorStyle,
                     colorSpec = colorSpec,
                     suCompatStatus = suCompatStatus,
@@ -236,6 +240,11 @@ class SettingsViewModel(
         repo.checkModuleUpdate = enabled
         _uiState.update { it.copy(checkModuleUpdate = enabled) }
     }
+
+    fun setAutoDeleteModuleZip(enabled: Boolean) {
+        repo.autoDeleteModuleZip = enabled
+        _uiState.update { it.copy(autoDeleteModuleZip = enabled) }
+    }
     fun setAlternativeIcon(context: Context, enabled: Boolean) {
         repo.alternativeIcon = enabled
         _uiState.update { it.copy(alternativeIcon = enabled) }
@@ -339,6 +348,11 @@ class SettingsViewModel(
     fun setShowFullStatus(enabled: Boolean) {
         repo.showFullStatus = enabled
         _uiState.update { it.copy(showFullStatus = enabled) }
+    }
+
+    fun setHideHomeWarnings(enabled: Boolean) {
+        repo.hideHomeWarnings = enabled
+        _uiState.update { it.copy(hideHomeWarnings = enabled) }
     }
 
     fun setSuCompatMode(mode: Int) {
