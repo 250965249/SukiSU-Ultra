@@ -49,6 +49,11 @@ on:
         required: false
         default: false
         type: boolean
+      release_build:
+        description: 'Mark version metadata as a release build'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
 
@@ -109,12 +114,37 @@ jobs:
           echo "Certificate hash: $HASH"
 
 
+  determine-version:
+    runs-on: ubuntu-latest
+
+    outputs:
+      version_code: ${{ steps.version.outputs.version_code }}
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Calculate version code
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          COMMIT_COUNT=$(git rev-list --count refs/remotes/origin/main)
+          VERSION_CODE=$((40000 + COMMIT_COUNT - 2815))
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "KernelSU version code: $VERSION_CODE (main commits: $COMMIT_COUNT)"
+
   build-lkm:
-    needs: generate-key
+    needs: [generate-key, determine-version]
     uses: ./.github/workflows/build-lkm.yml
     with:
       expected_size: ${{ needs.generate-key.outputs.expected_size || '' }}
       expected_hash: ${{ needs.generate-key.outputs.expected_hash || '' }}
+      version_code: ${{ needs.determine-version.outputs.version_code }}
+      release_build: ${{ inputs.release_build || github.ref_type == 'tag' }}
     secrets: inherit
 
   build-ksuinit:
@@ -906,6 +936,7 @@ jobs:
 
       - name: Upload Manager to telegram
         if: steps.need_upload.outputs.UPLOAD == 'true'
+        timeout-minutes: 10
         env:
           CHAT_ID: ${{ secrets.CHAT_ID }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -932,6 +963,7 @@ jobs:
 
       - name: Upload Manager-spoofed to telegram
         if: steps.need_upload.outputs.UPLOAD == 'true'
+        timeout-minutes: 10
         env:
           CHAT_ID: ${{ secrets.CHAT_ID }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}

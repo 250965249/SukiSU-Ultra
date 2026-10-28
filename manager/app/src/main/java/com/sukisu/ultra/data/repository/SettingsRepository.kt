@@ -6,6 +6,7 @@ interface SettingsRepository {
     var checkUpdate: Boolean
     var checkCiUpdate: Boolean
     var checkModuleUpdate: Boolean
+    var autoDeleteModuleZip: Boolean
     var alternativeIcon : Boolean
     var themeMode: Int
     var miuixMonet: Boolean
@@ -38,6 +39,7 @@ interface SettingsRepository {
     var superuserSortOption: Int
     var suLogFilters: Set<String>?
     var showFullStatus: Boolean
+    var hideHomeWarnings: Boolean
     var autoJailbreak: Boolean
     var useSoftReboot: Boolean
     val intentToken: String

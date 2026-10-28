@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.sukisu.ultra.R
 import com.sukisu.ultra.getKernelVersion
+import com.sukisu.ultra.ui.kernelFlash.KpmPatchOption
 import com.sukisu.ultra.ui.component.dialog.rememberConfirmDialog
 import com.sukisu.ultra.ui.component.material.ExpressiveScaffold
 import com.sukisu.ultra.ui.component.material.SegmentedCheckboxItem
@@ -185,6 +186,54 @@ internal fun InstallScreenMaterial(
                     }
                 }
             )
+            if (uiState.canPatchKpm) {
+                SegmentedColumn(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                ) {
+                    item {
+                        SegmentedDropdownItem(
+                            title = stringResource(R.string.install_kpm_operation),
+                            summary = stringResource(R.string.install_kpm_summary),
+                            items = listOf(stringResource(R.string.kpm_follow_kernel_file), stringResource(R.string.enable_kpm_patch), stringResource(R.string.enable_kpm_undo_patch)),
+                            selectedIndex = KpmPatchOption.entries.indexOf(uiState.kpmPatchOption),
+                            onItemSelected = { actions.onKpmOptionChange(KpmPatchOption.entries[it]) },
+                        )
+                    }
+                    item(visible = uiState.canSelectKpmBoot) {
+                        SegmentedListItem(
+                            headlineContent = { Text(stringResource(R.string.install_kpm_manual)) },
+                            supportingContent = {
+                                Text(uiState.kpmBootUri?.lastPathSegment ?: stringResource(
+                                    if (uiState.installMethod == null) R.string.install_kpm_auto_current_boot
+                                    else R.string.install_kpm_auto
+                                ))
+                            },
+                            trailingContent = {
+                                Icon(
+                                    Icons.Filled.ExpandMore,
+                                    stringResource(R.string.expand),
+                                    Modifier.graphicsLayer { rotationZ = if (uiState.kpmBootExpanded) 180f else 0f },
+                                )
+                            },
+                            onClick = actions.onToggleKpmBoot,
+                        )
+                    }
+                    item(visible = uiState.canSelectKpmBoot && uiState.kpmBootExpanded) {
+                        SegmentedListItem(
+                            headlineContent = { Text(stringResource(R.string.select_file)) },
+                            supportingContent = { uiState.kpmBootUri?.let { Text(it.lastPathSegment.orEmpty()) } },
+                            onClick = actions.onPatchKpmFile,
+                            trailingContent = {
+                                if (uiState.kpmBootUri != null) {
+                                    IconButton(onClick = actions.onClearKpmBoot) {
+                                        Icon(Icons.Filled.Close, stringResource(R.string.install_kpm_clear))
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
+            }
             SegmentedColumn(
                 modifier = Modifier.padding(horizontal = 16.dp),
             ) {
@@ -310,7 +359,7 @@ internal fun InstallScreenMaterial(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                enabled = uiState.installMethod != null && uiState.blockModulesValid,
+                enabled = uiState.canInstall,
                 onClick = actions.onNext
             ) { Text(stringResource(R.string.install_next)) }
         }

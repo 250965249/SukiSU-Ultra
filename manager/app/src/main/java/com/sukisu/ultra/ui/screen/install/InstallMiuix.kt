@@ -1,5 +1,7 @@
 package com.sukisu.ultra.ui.screen.install
 
+import com.sukisu.ultra.ui.kernelFlash.KpmPatchOption
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -268,6 +270,57 @@ internal fun InstallScreenMiuix(
                         }
                     }
 
+                    if (uiState.canPatchKpm) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp),
+                        ) {
+                            OverlayDropdownPreference(
+                                title = stringResource(R.string.install_kpm_operation),
+                                summary = stringResource(R.string.install_kpm_summary),
+                                items = listOf(stringResource(R.string.kpm_follow_kernel_file), stringResource(R.string.enable_kpm_patch), stringResource(R.string.enable_kpm_undo_patch)),
+                                selectedIndex = KpmPatchOption.entries.indexOf(uiState.kpmPatchOption),
+                                onSelectedIndexChange = { actions.onKpmOptionChange(KpmPatchOption.entries[it]) },
+                            )
+                            AnimatedVisibility(visible = uiState.canSelectKpmBoot) {
+                                Column {
+                                    BasicComponent(
+                                        title = stringResource(R.string.install_kpm_manual),
+                                        summary = uiState.kpmBootUri?.lastPathSegment
+                                            ?: stringResource(
+                                                if (uiState.installMethod == null) R.string.install_kpm_auto_current_boot
+                                                else R.string.install_kpm_auto
+                                            ),
+                                        onClick = actions.onToggleKpmBoot,
+                                        endActions = {
+                                            Icon(
+                                                if (uiState.kpmBootExpanded) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
+                                                contentDescription = stringResource(R.string.expand),
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        },
+                                    )
+                                    AnimatedVisibility(visible = uiState.kpmBootExpanded) {
+                                        Column {
+                                            BasicComponent(
+                                                title = stringResource(R.string.select_file),
+                                                summary = uiState.kpmBootUri?.lastPathSegment,
+                                                onClick = actions.onPatchKpmFile,
+                                            )
+                                            if (uiState.kpmBootUri != null) {
+                                                BasicComponent(
+                                                    title = stringResource(R.string.install_kpm_clear),
+                                                    onClick = actions.onClearKpmBoot,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -410,7 +463,7 @@ internal fun InstallScreenMiuix(
                                 .fillMaxWidth()
                                 .padding(top = 12.dp),
                             text = stringResource(id = R.string.install_next),
-                            enabled = uiState.installMethod != null && uiState.blockModulesValid,
+                            enabled = uiState.canInstall,
                             colors = ButtonDefaults.textButtonColorsPrimary(),
                             onClick = actions.onNext
                         )
