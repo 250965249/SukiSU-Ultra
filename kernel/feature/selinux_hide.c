@@ -551,7 +551,7 @@ static int ksu_selinux_hide_enable()
 #if defined(CONFIG_KSU_SAMSUNG_RKP) && defined(__aarch64__)
     ret = samsung_register_kprobe(&samsung_access_kprobe, orig_access_write, &samsung_access_registered);
 #else
-    write_op_fn my = my_write_access;
+    my = my_write_access;
     ret = ksu_patch_text(access_write, &my, sizeof(my), KSU_PATCH_TEXT_FLUSH_DCACHE);
 #endif
     if (ret) {
