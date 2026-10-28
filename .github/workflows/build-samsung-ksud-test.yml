@@ -1,0 +1,21 @@
+name: Build Samsung ksud (single KMI test)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-lkm:
+    uses: ./.github/workflows/ddk-lkm.yml
+    with:
+      kmi: android15-6.6
+
+  build-ksuinit:
+    uses: ./.github/workflows/ksuinit.yml
+
+  build-ksud:
+    needs: [build-lkm, build-ksuinit]
+    uses: ./.github/workflows/ksud.yml
+    with:
+      target: aarch64-linux-android
+      pack_lkm: true
+      pack_ksuinit: true
