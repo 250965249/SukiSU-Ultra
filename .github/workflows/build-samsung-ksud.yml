@@ -1,0 +1,36 @@
+name: Build Samsung ksud
+
+# Samsung S25U (KDP / RKP / DEFEX) ksud builder.
+#
+# Produces one aarch64-linux-android `ksud` with every KMI's Samsung-patched
+# kernelsu.ko embedded (RustEmbed reads userspace/ksud/bin/aarch64 at compile
+# time). Download the `ksud-aarch64-linux-android` artifact and place it at
+# GhostSam's app/src/main/assets/payloads/ksud/ksud-sukisu.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - samsung
+    paths:
+      - '.github/workflows/build-samsung-ksud.yml'
+      - '.github/workflows/build-lkm.yml'
+      - '.github/workflows/ddk-lkm.yml'
+      - '.github/workflows/ksud.yml'
+      - '.github/workflows/ksuinit.yml'
+      - 'kernel/**'
+      - 'userspace/**'
+
+jobs:
+  build-lkm:
+    uses: ./.github/workflows/build-lkm.yml
+
+  build-ksuinit:
+    uses: ./.github/workflows/ksuinit.yml
+
+  build-ksud:
+    needs: [build-lkm, build-ksuinit]
+    uses: ./.github/workflows/ksud.yml
+    with:
+      target: aarch64-linux-android
+      pack_lkm: true
+      pack_ksuinit: true

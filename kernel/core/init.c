@@ -31,6 +31,8 @@
 #include "feature/module_blacklist.h"
 #include "infra/symbol_resolver.h"
 #include "preinit/preinit.h"
+#include "compat/samsung_defex.h"
+#include "ksu_samsung_kdp.h"
 #include "extension/extension.h"
 
 #if defined(__x86_64__) && !defined(CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER)
@@ -138,13 +140,26 @@ int __init kernelsu_init(void)
         pr_alert("shell is allowed at init!");
     }
 
-    ksu_cred = prepare_creds();
-    if (!ksu_cred) {
-        pr_err("prepare cred failed!\n");
+    ksu_init_symbol_resolver();
+
+    if (ksu_samsung_kdp_init()) {
+        pr_err("Samsung KDP init failed\n");
         return -ENOSYS;
     }
 
-    ksu_init_symbol_resolver();
+    ksu_cred = prepare_creds();
+    if (!ksu_cred) {
+        pr_err("prepare cred failed!\n");
+        ksu_samsung_kdp_exit();
+        return -ENOSYS;
+    }
+
+    if (ksu_samsung_defex_init()) {
+        pr_err("Samsung DEFEX init failed\n");
+        ksu_put_cred(ksu_cred);
+        ksu_samsung_kdp_exit();
+        return -ENOSYS;
+    }
 
     if (spoof_release || spoof_version) {
         ksu_spoof_version(spoof_release, spoof_version);
@@ -253,7 +268,9 @@ void __exit kernelsu_exit(void)
     ksu_module_blacklist_exit();
     ksu_extension_exit();
 
-    put_cred(ksu_cred);
+    ksu_samsung_defex_exit();
+    ksu_put_cred(ksu_cred);
+    ksu_samsung_kdp_exit();
 }
 
 #if NEED_OWN_STACKPROTECTOR

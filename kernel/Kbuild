@@ -1,5 +1,10 @@
 kernelsu-objs := core/init.o
 
+# Samsung Knox (KDP / RKP / DEFEX) compatibility layer.
+kernelsu-objs += compat/samsung_kdp.o
+kernelsu-objs += compat/samsung_defex.o
+kernelsu-objs += compat/samsung_rkp.o
+
 kernelsu-objs += feature/kernel_umount.o
 kernelsu-objs += feature/module_blacklist.o
 kernelsu-objs += feature/mount_hide.o
@@ -79,6 +84,19 @@ ccflags-y += -DCONFIG_KSU_DEBUG=1
 endif
 ifeq ($(CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER),y)
 ccflags-y += -DCONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER=1
+endif
+# Samsung Knox compatibility (GKI LKM builds pass these as make variables).
+ifeq ($(CONFIG_KSU_SAMSUNG_KDP),y)
+ccflags-y += -DCONFIG_KSU_SAMSUNG_KDP=1
+endif
+ifeq ($(CONFIG_KSU_SAMSUNG_RKP),y)
+ccflags-y += -DCONFIG_KSU_SAMSUNG_RKP=1
+endif
+ifeq ($(CONFIG_KSU_SAMSUNG_DEFEX),y)
+ccflags-y += -DCONFIG_KSU_SAMSUNG_DEFEX=1
+endif
+ifeq ($(CONFIG_KSU_SAMSUNG_NO_PATCH_TEXT),y)
+ccflags-y += -DCONFIG_KSU_SAMSUNG_NO_PATCH_TEXT=1
 endif
 endif
 
