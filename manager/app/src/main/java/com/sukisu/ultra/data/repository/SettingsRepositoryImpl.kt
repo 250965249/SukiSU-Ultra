@@ -14,6 +14,8 @@ import com.sukisu.ultra.magica.BootCompletedReceiver
 import com.sukisu.ultra.ui.UiMode
 import com.sukisu.ultra.ui.screen.module.ModuleNameSort
 import com.sukisu.ultra.ui.screen.modulerepo.RepoSort
+import com.sukisu.ultra.ui.util.BgStorage
+import com.sukisu.ultra.ui.util.BuiltinAppIcons
 import com.sukisu.ultra.ui.util.execKsud
 import com.sukisu.ultra.ui.util.getFeaturePersistValue
 import com.sukisu.ultra.ui.util.getFeatureValue
@@ -24,6 +26,7 @@ import java.security.SecureRandom
 private const val SETTINGS_PREFS = "settings"
 private const val KEY_USE_SOFT_REBOOT = "soft_reboot"
 private const val KEY_AUTO_DELETE_MODULE_ZIP = "auto_delete_module_zip"
+internal const val KEY_CUSTOM_HOME_TITLE = "custom_home_title"
 
 /** Prefer soft reboot: always in jailbreak mode, or when the setting is enabled. */
 fun isSoftRebootPreferred(): Boolean =
@@ -45,6 +48,55 @@ class SettingsRepositoryImpl : SettingsRepository {
     private val prefs by lazy {
         ksuApp.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
     }
+
+    override var customBackgroundUri: String
+        get() = prefs.getString("custom_bg_uri", "") ?: ""
+        set(value) = prefs.edit { putString("custom_bg_uri", value) }
+
+    override var customBackgroundUpdatedAt: Long
+        get() = prefs.getLong("custom_bg_updated_at", 0L)
+        set(value) = prefs.edit { putLong("custom_bg_updated_at", value) }
+
+    override var useSystemWallpaper: Boolean
+        get() = prefs.getBoolean("use_system_wallpaper", false)
+        set(value) = prefs.edit { putBoolean("use_system_wallpaper", value) }
+
+    override var extractColorFromBackground: Boolean
+        get() = prefs.getBoolean("extract_color_from_background", false)
+        set(value) = prefs.edit { putBoolean("extract_color_from_background", value) }
+
+    override var cardBackgroundAlphaPercent: Int
+        get() = prefs.getInt("card_bg_alpha_percent", 60)
+        set(value) = prefs.edit { putInt("card_bg_alpha_percent", value) }
+
+    override var customBackgroundBlurPercent: Int
+        get() = prefs.getInt(
+            "custom_bg_blur_percent",
+            BgStorage.defaultBackgroundBlurPercent(ksuApp),
+        )
+        set(value) = prefs.edit {
+            putInt(
+                "custom_bg_blur_percent",
+                value.coerceIn(BgStorage.BACKGROUND_BLUR_PERCENT_MIN, BgStorage.BACKGROUND_BLUR_PERCENT_MAX),
+            )
+        }
+
+    override var customBackgroundScrimPercent: Int
+        get() = prefs.getInt("custom_bg_scrim_percent", BgStorage.DEFAULT_BACKGROUND_SCRIM)
+        set(value) = prefs.edit {
+            putInt(
+                "custom_bg_scrim_percent",
+                value.coerceIn(BgStorage.BACKGROUND_SCRIM_MIN, BgStorage.BACKGROUND_SCRIM_MAX),
+            )
+        }
+
+    override var backgroundAppearanceExpanded: Boolean
+        get() = prefs.getBoolean("background_appearance_expanded", true)
+        set(value) = prefs.edit { putBoolean("background_appearance_expanded", value) }
+
+    override var customHomeTitle: String
+        get() = prefs.getString(KEY_CUSTOM_HOME_TITLE, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_CUSTOM_HOME_TITLE, value.trim()) }
 
     override var uiMode: String
         get() = prefs.getString("ui_mode", null) ?: initialUiMode().also { mode ->
@@ -81,9 +133,23 @@ class SettingsRepositoryImpl : SettingsRepository {
         get() = prefs.getBoolean(KEY_AUTO_DELETE_MODULE_ZIP, false)
         set(value) = prefs.edit { putBoolean(KEY_AUTO_DELETE_MODULE_ZIP, value) }
 
-    override var alternativeIcon : Boolean
-        get() = prefs.getBoolean("use_alt_icon", false)
-        set(value) = prefs.edit { putBoolean("use_alt_icon", value)}
+    override var appIconId: String
+        get() = prefs.getString("app_icon_id", null)
+            ?: if (prefs.getBoolean("use_alt_icon", false)) {
+                BuiltinAppIcons.KERNELSU_ID
+            } else {
+                BuiltinAppIcons.DEFAULT_ID
+            }
+        // Commit synchronously: changing components can restart the process before an async write lands.
+        set(value) = prefs.edit(commit = true) {
+            putString("app_icon_id", value)
+            // Keep the legacy flag in sync so downgrading still restores the KernelSU icon.
+            putBoolean("use_alt_icon", value == BuiltinAppIcons.KERNELSU_ID)
+        }
+
+    override var appIconDynamicColor: Boolean
+        get() = prefs.getBoolean("app_icon_dynamic_color", false)
+        set(value) = prefs.edit(commit = true) { putBoolean("app_icon_dynamic_color", value) }
 
     override var themeMode: Int
         get() = prefs.getInt("color_mode", 0)
