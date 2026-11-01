@@ -49,6 +49,8 @@ jobs:
     steps:
     - name: Checkout source code
       uses: actions/checkout@v6
+      with:
+        ref: ${{ github.ref_name }}
 
     - name: Build kernelsu.ko
       env:
