@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -41,7 +42,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -61,6 +61,7 @@ import com.sukisu.ultra.KernelVersion
 import com.sukisu.ultra.Natives
 import com.sukisu.ultra.R
 import com.sukisu.ultra.ui.component.WarningLevel
+import com.sukisu.ultra.ui.component.HomeCardStickerOverlays
 import com.sukisu.ultra.ui.component.dialog.rememberConfirmDialog
 import com.sukisu.ultra.ui.component.miuix.AppCard
 import com.sukisu.ultra.ui.component.miuix.AppScaffold
@@ -68,6 +69,7 @@ import com.sukisu.ultra.ui.component.miuix.WarningCard
 import com.sukisu.ultra.ui.component.rebootlistpopup.RebootListPopupMiuix
 import com.sukisu.ultra.ui.component.statustag.StatusTag
 import com.sukisu.ultra.ai.api.AiFeatureBridge
+import com.sukisu.ultra.ui.theme.AiAssistantMaterialTheme
 import com.sukisu.ultra.ui.theme.LocalBackgroundImagePath
 import com.sukisu.ultra.ui.theme.LocalEnableBlur
 import com.sukisu.ultra.ui.theme.backgroundAwareCardColors
@@ -76,6 +78,7 @@ import com.sukisu.ultra.ui.util.customText
 import com.sukisu.ultra.ui.util.CustomTextKey
 import com.sukisu.ultra.ui.theme.isInDarkTheme
 import com.sukisu.ultra.ui.util.BlurredBar
+import com.sukisu.ultra.ui.util.drawPainterCover
 import com.sukisu.ultra.ui.util.module.LatestVersionInfo
 import com.sukisu.ultra.ui.util.rememberBlurBackdrop
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -154,41 +157,43 @@ fun HomePagerMiuix(
                 }
                         if (!state.hideHomeWarnings) {
                             if (state.showManagerPrBuildWarning && state.showFullStatus) {
-                                WarningCard(stringResource(id = R.string.home_pr_build_warning), level = WarningLevel.Notice)
+                                WarningCard(customText(CustomTextKey.HOME_WARN_PR_BUILD), level = WarningLevel.Notice)
                             } else if (state.showKernelPrBuildWarning && state.showFullStatus) {
-                                WarningCard(stringResource(id = R.string.home_pr_kernel_warning), level = WarningLevel.Notice)
+                                WarningCard(customText(CustomTextKey.HOME_WARN_PR_KERNEL), level = WarningLevel.Notice)
                             }
                             if (state.requiresNewKernel && state.showFullStatus) {
                                 WarningCard(
-                                    stringResource(
-                                        id = if (state.canInstallKernelUpdate) R.string.require_kernel_version else R.string.require_kernel_version_gki
+                                    customText(
+                                        if (state.canInstallKernelUpdate) CustomTextKey.HOME_WARN_REQUIRE_KERNEL
+                                        else CustomTextKey.HOME_WARN_REQUIRE_KERNEL_GKI
                                     ),
                                     onClick = if (state.canInstallKernelUpdate) actions.onInstallClick else null
                                 )
                             }
                             if (state.requiresNewManager) {
                                 WarningCard(
-                                    stringResource(
-                                        id = R.string.require_manager_version
-                                    )
+                                    customText(CustomTextKey.HOME_WARN_REQUIRE_MANAGER)
                                 )
                             }
                             if (state.showLkmUpdate && state.showFullStatus) {
                                 WarningCard(
-                                    message = stringResource(R.string.home_lkm_update_available),
+                                    message = customText(CustomTextKey.HOME_WARN_LKM_UPDATE),
                                     level = WarningLevel.Notice,
                                     onClick = actions.onInstallClick,
                                 )
                             }
                         }
                         if (state.showRootWarning) {
-                            WarningCard(stringResource(id = R.string.grant_root_failed))
+                            WarningCard(customText(CustomTextKey.HOME_WARN_ROOT_FAILED))
                         }
                         if (state.isPreviewMode && !state.hideHomeWarnings) {
-                            WarningCard(stringResource(id = R.string.home_preview_mode), level = WarningLevel.Notice)
+                            WarningCard(customText(CustomTextKey.HOME_WARN_PREVIEW_MODE), level = WarningLevel.Notice)
                         }
                         if (state.showAiHomeCard && AiFeatureBridge.isAvailable) {
-                            AiFeatureBridge.HomeCardMiuix(onOpenChat = actions.onOpenAi)
+                            // MD3 card inside the Miuix page: use the MD3 scheme of the appearance settings.
+                            AiAssistantMaterialTheme {
+                                AiFeatureBridge.HomeCard(onOpenChat = actions.onOpenAi)
+                            }
                         }
                         StatsRow(state = state, actions = actions)
                         InfoCard(
@@ -220,13 +225,13 @@ private fun UpdateCard(
 ) {
     val ciInfo = state.ciLatestVersionInfo
     val ciDialog = rememberConfirmDialog(onConfirm = actions.onCiUpdateClick)
-    val ciTitle = customText(CustomTextKey.HOME_UPDATE_NEW_VERSION)
+    val ciTitle = customText(CustomTextKey.HOME_UPDATE_NEW_VERSION, ciInfo.versionCode)
     val ciConfirm = stringResource(R.string.module_update)
     val ciContent = ciInfo.changelog
     if (state.checkCiUpdateEnabled && ciInfo.versionCode > state.currentManagerVersionCode) {
         WarningCard(
-            message = if (state.ciUpdateBusy) stringResource(R.string.ci_update_busy)
-                else stringResource(R.string.ci_update_available, ciInfo.versionCode),
+            message = if (state.ciUpdateBusy) customText(CustomTextKey.HOME_CI_UPDATE_BUSY)
+            else customText(CustomTextKey.HOME_CI_UPDATE_AVAILABLE, ciInfo.versionCode),
             level = WarningLevel.Notice,
             onClick = {
                 if (!state.ciUpdateBusy) ciDialog.showConfirm(
@@ -246,7 +251,7 @@ private fun UpdateCard(
         exit = shrinkVertically() + fadeOut()
     ) {
         WarningCard(
-            message = stringResource(id = R.string.new_version_available, newVersion.versionCode),
+            message = customText(CustomTextKey.HOME_UPDATE_NEW_VERSION, newVersion.versionCode),
             level = WarningLevel.Notice,
             onClick = {
                 if (state.ciUpdateBusy) return@WarningCard
@@ -345,7 +350,7 @@ private fun ActiveStatusCard(
             .clip(RoundedCornerShape(CardDefaults.CornerRadius))
             .then(
                 if (cardImagePainter != null) {
-                    Modifier.drawBehind { with(cardImagePainter) { draw(size) } }
+                    Modifier.drawPainterCover(cardImagePainter)
                 } else {
                     Modifier
                 }
@@ -367,16 +372,18 @@ private fun ActiveStatusCard(
         showIndication = !state.isLateLoadMode,
         pressFeedbackType = PressFeedbackType.Tilt
     ) {
-        Box {
-            Icon(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(27.dp, 31.dp)
-                    .size(150.dp),
-                imageVector = Icons.Rounded.CheckCircleOutline,
-                tint = accentColor.copy(alpha = if (isDynamicColor) 0.8f else 1f),
-                contentDescription = null
-            )
+        BoxWithConstraints {
+            if (!(state.homeCardImagePath.isNotEmpty() && state.hideHomeCardDecoration)) {
+                Icon(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(27.dp, 31.dp)
+                        .size(150.dp),
+                    imageVector = Icons.Rounded.CheckCircleOutline,
+                    tint = accentColor.copy(alpha = if (isDynamicColor) 0.8f else 1f),
+                    contentDescription = null
+                )
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -418,22 +425,28 @@ private fun ActiveStatusCard(
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = customText(CustomTextKey.HOME_STATUS_WORKING),
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.home_working_version,
-                            "${state.ksuVersion}-${state.kernelUAPIVersion}"
-                        ),
-                        fontSize = 14.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = colorScheme.onSurfaceVariantSummary,
-                    )
+                    if (!(state.homeCardImagePath.isNotEmpty() && state.hideHomeCardStatusText)) {
+                        Text(
+                            text = customText(CustomTextKey.HOME_STATUS_WORKING),
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.home_working_version,
+                                "${state.ksuVersion}-${state.kernelUAPIVersion}"
+                            ),
+                            fontSize = 14.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
                 }
             }
+            HomeCardStickerOverlays(
+                stickers = state.homeCardStickers,
+                cardWidth = maxWidth,
+            )
         }
     }
 }
@@ -470,9 +483,11 @@ private fun InactiveStatusCard(
                     modifier = Modifier.size(18.dp),
                 )
                 Text(
-                    text = stringResource(
-                        if (notInstalled) R.string.home_click_to_install else R.string.home_unsupported_reason
-                    ),
+                    text = if (notInstalled) {
+                        customText(CustomTextKey.HOME_STATUS_INSTALL_HINT)
+                    } else {
+                        stringResource(R.string.home_unsupported_reason)
+                    },
                     fontSize = 14.sp,
                     color = colorScheme.error,
                 )
@@ -486,7 +501,7 @@ private fun InactiveStatusCard(
             if (notInstalled) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TextButton(
-                        text = stringResource(R.string.install),
+                        text = customText(CustomTextKey.HOME_BTN_INSTALL),
                         onClick = actions.onInstallClick,
                         colors = ButtonDefaults.textButtonColorsPrimary()
                     )

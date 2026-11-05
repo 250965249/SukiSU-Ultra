@@ -27,16 +27,29 @@ object ImageStorage {
     private const val FILE_NAME = "bg_image"
     private const val SYSTEM_WALLPAPER_FILE_NAME = "system_wallpaper"
     private const val HOME_CARD_PREFIX = "home_card_image"
+    private const val HOME_CARD_STICKER_PREFIX = "home_card_sticker"
+    private const val ADAPTIVE_BACKGROUND_LIGHT = "adaptive_bg_light"
+    private const val ADAPTIVE_BACKGROUND_DARK = "adaptive_bg_dark"
+    private const val ADAPTIVE_CARD_LIGHT_PREFIX = "adaptive_card_light_"
+    private const val ADAPTIVE_CARD_DARK_PREFIX = "adaptive_card_dark_"
+    private const val ADAPTIVE_STICKER_LIGHT_PREFIX = "adaptive_sticker_light_"
+    private const val ADAPTIVE_STICKER_DARK_PREFIX = "adaptive_sticker_dark_"
+    private const val ADAPTIVE_DRAFT_BACKGROUND_LIGHT = "adaptive_draft_bg_light"
+    private const val ADAPTIVE_DRAFT_BACKGROUND_DARK = "adaptive_draft_bg_dark"
+    private const val ADAPTIVE_DRAFT_CARD_LIGHT_PREFIX = "adaptive_draft_card_light_"
+    private const val ADAPTIVE_DRAFT_CARD_DARK_PREFIX = "adaptive_draft_card_dark_"
+    private const val ADAPTIVE_DRAFT_STICKER_LIGHT_PREFIX = "adaptive_draft_sticker_light_"
+    private const val ADAPTIVE_DRAFT_STICKER_DARK_PREFIX = "adaptive_draft_sticker_dark_"
     private const val SYSTEM_WALLPAPER_SIGNATURE_FILE_NAME = "system_wallpaper.sig"
     private const val MAX_SYSTEM_WALLPAPER_PIXELS = 150_000_000L
     private const val MAX_WALLPAPER_VALIDATION_DIMENSION = 1024
 
     private val systemWallpaperMutex = Mutex()
 
-    /** Result of copying the launcher wallpaper into the app's private storage. */
+    
     data class SystemWallpaperResult(
         val path: String?,
-        /** True when the cached file was written, false when it was already current. */
+        
         val changed: Boolean,
     )
 
@@ -48,7 +61,7 @@ object ImageStorage {
     const val BACKGROUND_BLUR_PERCENT_MAX = 100
     const val DEFAULT_BACKGROUND_BLUR_PERCENT = 50
 
-    /** Blur radius applied to the background image at 100%. */
+    
     const val BACKGROUND_BLUR_MAX_RADIUS_DP = 40f
 
     /**
@@ -62,7 +75,7 @@ object ImageStorage {
             DEFAULT_BACKGROUND_BLUR_PERCENT
         }
 
-    /** Scrim opacity: negative values darken with black, positive values brighten with white. */
+    
     const val BACKGROUND_SCRIM_MIN = -100
     const val BACKGROUND_SCRIM_MAX = 100
     const val DEFAULT_BACKGROUND_SCRIM = -35
@@ -74,7 +87,7 @@ object ImageStorage {
         }
     }
 
-    /** Cached copy of the launcher wallpaper, or a non-existent file when it has not been captured. */
+    
     fun systemWallpaperFile(context: Context): File =
         File(backgroundsDir(context), SYSTEM_WALLPAPER_FILE_NAME)
 
@@ -127,7 +140,7 @@ object ImageStorage {
         }
     }
 
-    /** Copies a validated wallpaper into [dest], preserving the previous cache on failure. */
+    
     private fun writeSystemWallpaperWithRoot(source: String, dest: File): Boolean {
         val parent = dest.parentFile ?: return false
         val staging = runCatching {
@@ -190,7 +203,7 @@ object ImageStorage {
         }
     }
 
-    /** Streams shell output line by line to avoid building a wallpaper-sized Base64 string. */
+    
     private fun streamBase64Wallpaper(source: String, dest: File): Boolean {
         val output = runCatching { dest.outputStream() }.getOrNull() ?: return false
         val writeFailed = AtomicBoolean(false)
@@ -217,7 +230,7 @@ object ImageStorage {
         return commandSucceeded && closeSucceeded && !writeFailed.get()
     }
 
-    /** UserHandle.myUserId()/Context.getUserId() are hidden in the SDK; the uid encodes the user. */
+    
     private fun systemWallpaperUserId(): Int = Process.myUid() / 100000
 
     private fun resolveSystemWallpaperSource(userId: Int): String? {
@@ -262,7 +275,7 @@ object ImageStorage {
         return discoveredBest
     }
 
-    /** Returns (modifiedTimeSeconds, size) for an existing non-empty regular file. */
+    
     private fun wallpaperFileInfo(path: String): Pair<Long, Long>? = runCatching {
         val quoted = path.shellQuote()
         val out = ShellUtils.fastCmd(getRootShell(), "[ -f $quoted ] && stat -c '%Y:%s' $quoted").trim()
@@ -302,7 +315,7 @@ object ImageStorage {
         }.getOrNull()
     }
 
-    /** Copies an already stored image (for example the current background) into the crop cache. */
+    
     suspend fun stageFile(context: Context, source: File): String? = withContext(Dispatchers.IO) {
         runCatching {
             if (!source.isFile) return@runCatching null
@@ -314,7 +327,7 @@ object ImageStorage {
         }.getOrNull()
     }
 
-    /** Creates the destination the vendor gallery cropper should write its result to. */
+    
     fun newCropOutput(context: Context): File =
         File.createTempFile("crop_", ".jpg", cropCacheDir(context))
 
@@ -334,7 +347,7 @@ object ImageStorage {
         return dir
     }
 
-    /** Moves [source] over the stored background image and returns the new path. */
+    
     suspend fun replace(context: Context, source: File): String? = withContext(Dispatchers.IO) {
         runCatching {
             val targetFile = prepareFile(context)
@@ -444,7 +457,52 @@ object ImageStorage {
             ?.forEach { it.delete() }
     }
 
-    /** Moves [source] over the home status card image slot and returns the new path. */
+    suspend fun saveHomeCardSticker(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = backgroundsDir(context)
+            val target = File(dir, HOME_CARD_STICKER_PREFIX + "_" + System.currentTimeMillis() + "_" + System.nanoTime())
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            } ?: return@runCatching null
+            if (target.length() == 0L) {
+                target.delete()
+                return@runCatching null
+            }
+            target.absolutePath
+        }.getOrNull()
+    }
+
+    
+    suspend fun deleteHomeCardSticker(context: Context, path: String) = withContext(Dispatchers.IO) {
+        val dir = backgroundsDir(context)
+        File(path).takeIf { it.parentFile == dir }?.delete()
+    }
+
+    suspend fun clearHomeCardSticker(context: Context) = withContext(Dispatchers.IO) {
+        backgroundsDir(context)
+            .listFiles { file -> file.name.startsWith(HOME_CARD_STICKER_PREFIX) }
+            ?.forEach { it.delete() }
+    }
+
+    
+    suspend fun importHomeCardSticker(context: Context, source: File): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = backgroundsDir(context)
+            val target = File(dir, HOME_CARD_STICKER_PREFIX + "_" + System.currentTimeMillis() + "_" + System.nanoTime())
+            if (!source.renameTo(target)) {
+                source.inputStream().use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            if (target.length() == 0L) {
+                target.delete()
+                return@runCatching null
+            }
+            target.absolutePath
+        }.getOrNull()
+    }
+
+    
     suspend fun replaceHomeCardImage(context: Context, source: File): String? = withContext(Dispatchers.IO) {
         runCatching {
             val dir = backgroundsDir(context)
@@ -464,44 +522,212 @@ object ImageStorage {
         }.getOrNull()
     }
 
+    private fun adaptiveBackgroundName(dark: Boolean, draft: Boolean): String = when {
+        draft && dark -> ADAPTIVE_DRAFT_BACKGROUND_DARK
+        draft -> ADAPTIVE_DRAFT_BACKGROUND_LIGHT
+        dark -> ADAPTIVE_BACKGROUND_DARK
+        else -> ADAPTIVE_BACKGROUND_LIGHT
+    }
+
+    private fun adaptiveCardPrefix(dark: Boolean, draft: Boolean): String = when {
+        draft && dark -> ADAPTIVE_DRAFT_CARD_DARK_PREFIX
+        draft -> ADAPTIVE_DRAFT_CARD_LIGHT_PREFIX
+        dark -> ADAPTIVE_CARD_DARK_PREFIX
+        else -> ADAPTIVE_CARD_LIGHT_PREFIX
+    }
+
+    private fun adaptiveStickerPrefix(dark: Boolean, draft: Boolean): String = when {
+        draft && dark -> ADAPTIVE_DRAFT_STICKER_DARK_PREFIX
+        draft -> ADAPTIVE_DRAFT_STICKER_LIGHT_PREFIX
+        dark -> ADAPTIVE_STICKER_DARK_PREFIX
+        else -> ADAPTIVE_STICKER_LIGHT_PREFIX
+    }
+
     /**
-     * Unified exporter for custom images (background wallpaper and home status card).
-     * If both are present, they are bundled together into a standard unencrypted ZIP archive.
-     * If only one is present, it is copied directly as a standalone image.
+     * Adaptive themes keep one background per system mode. The files live beside the normal
+     * background but use their own names so a manual background change cannot delete them.
+     * [draft] uses a separate slot set for the in-app builder, so capturing a draft never
+     * overwrites the theme that is currently applied.
+     */
+    suspend fun replaceAdaptiveBackground(
+        context: Context,
+        source: File,
+        dark: Boolean,
+        draft: Boolean = false,
+    ): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val target = File(backgroundsDir(context), adaptiveBackgroundName(dark, draft))
+            if (!source.renameTo(target)) {
+                source.inputStream().use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            if (target.length() == 0L) {
+                target.delete()
+                return@runCatching null
+            }
+            target.absolutePath
+        }.getOrNull()
+    }
+
+    suspend fun clearAdaptiveBackground(
+        context: Context,
+        dark: Boolean,
+        draft: Boolean = false,
+    ) = withContext(Dispatchers.IO) {
+        val file = File(backgroundsDir(context), adaptiveBackgroundName(dark, draft))
+        if (file.isFile) file.delete()
+    }
+
+    
+    suspend fun replaceAdaptiveHomeCardImage(
+        context: Context,
+        source: File,
+        dark: Boolean,
+        draft: Boolean = false,
+    ): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = backgroundsDir(context)
+            val prefix = adaptiveCardPrefix(dark, draft)
+            val target = File(dir, prefix + System.currentTimeMillis())
+            if (!source.renameTo(target)) {
+                source.inputStream().use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            if (target.length() == 0L) {
+                target.delete()
+                return@runCatching null
+            }
+            dir.listFiles { file -> file.name.startsWith(prefix) && file != target }
+                ?.forEach { it.delete() }
+            target.absolutePath
+        }.getOrNull()
+    }
+
+    suspend fun clearAdaptiveHomeCardImage(
+        context: Context,
+        dark: Boolean,
+        draft: Boolean = false,
+    ) = withContext(Dispatchers.IO) {
+        val prefix = adaptiveCardPrefix(dark, draft)
+        backgroundsDir(context)
+            .listFiles { file -> file.name.startsWith(prefix) }
+            ?.forEach { it.delete() }
+    }
+
+    
+    suspend fun importAdaptiveHomeCardSticker(
+        context: Context,
+        source: File,
+        dark: Boolean,
+        index: Int,
+        draft: Boolean = false,
+    ): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = backgroundsDir(context)
+            val prefix = adaptiveStickerPrefix(dark, draft)
+            val target = File(
+                dir,
+                prefix + index + "_" + System.currentTimeMillis() + "_" + System.nanoTime(),
+            )
+            if (!source.renameTo(target)) {
+                source.inputStream().use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            if (target.length() == 0L) {
+                target.delete()
+                return@runCatching null
+            }
+            target.absolutePath
+        }.getOrNull()
+    }
+
+    suspend fun clearAdaptiveHomeCardStickers(
+        context: Context,
+        dark: Boolean,
+        draft: Boolean = false,
+    ) = withContext(Dispatchers.IO) {
+        val prefix = adaptiveStickerPrefix(dark, draft)
+        backgroundsDir(context)
+            .listFiles { file -> file.name.startsWith(prefix) }
+            ?.forEach { it.delete() }
+    }
+
+    
+    suspend fun clearAdaptiveImages(context: Context) = withContext(Dispatchers.IO) {
+        val dir = backgroundsDir(context)
+        dir.listFiles { file ->
+            file.name == ADAPTIVE_BACKGROUND_LIGHT ||
+                file.name == ADAPTIVE_BACKGROUND_DARK ||
+                file.name == ADAPTIVE_DRAFT_BACKGROUND_LIGHT ||
+                file.name == ADAPTIVE_DRAFT_BACKGROUND_DARK ||
+                file.name.startsWith(ADAPTIVE_CARD_LIGHT_PREFIX) ||
+                file.name.startsWith(ADAPTIVE_CARD_DARK_PREFIX) ||
+                file.name.startsWith(ADAPTIVE_DRAFT_CARD_LIGHT_PREFIX) ||
+                file.name.startsWith(ADAPTIVE_DRAFT_CARD_DARK_PREFIX) ||
+                file.name.startsWith(ADAPTIVE_STICKER_LIGHT_PREFIX) ||
+                file.name.startsWith(ADAPTIVE_STICKER_DARK_PREFIX) ||
+                file.name.startsWith(ADAPTIVE_DRAFT_STICKER_LIGHT_PREFIX) ||
+                file.name.startsWith(ADAPTIVE_DRAFT_STICKER_DARK_PREFIX)
+        }?.forEach { it.delete() }
+    }
+
+    /**
+     * Unified exporter for custom images (background wallpaper, home status card and sticker).
+     * Multiple images are bundled into a standard unencrypted ZIP archive; a single image is
+     * copied directly.
      */
     suspend fun exportImages(
         context: Context,
         uri: Uri,
         backgroundFile: File?,
         cardBackgroundFile: File?,
+        stickerFiles: List<File> = emptyList(),
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val hasBg = backgroundFile != null && backgroundFile.isFile
-            val hasCard = cardBackgroundFile != null && cardBackgroundFile.isFile
-            if (!hasBg && !hasCard) error("No image to export")
+            val entries = buildList {
+                backgroundFile?.takeIf { it.isFile }?.let { add("background.png" to it) }
+                cardBackgroundFile?.takeIf { it.isFile }?.let { add("home_card.png" to it) }
+                stickerFiles.filter { it.isFile }.forEachIndexed { index, file ->
+                    add("sticker_${index + 1}.png" to file)
+                }
+            }
+            if (entries.isEmpty()) error("No image to export")
 
             val output = context.contentResolver.openOutputStream(uri)
                 ?: error("Cannot open destination")
 
-            if (hasBg && hasCard) {
+            if (entries.size > 1) {
                 java.io.BufferedOutputStream(output).use { out ->
                     java.util.zip.ZipOutputStream(out).use { zip ->
-                        zip.putNextEntry(java.util.zip.ZipEntry("background.png"))
-                        backgroundFile.inputStream().use { it.copyTo(zip) }
-                        zip.closeEntry()
-
-                        zip.putNextEntry(java.util.zip.ZipEntry("home_card.png"))
-                        cardBackgroundFile.inputStream().use { it.copyTo(zip) }
-                        zip.closeEntry()
+                        entries.forEach { (name, file) ->
+                            zip.putNextEntry(java.util.zip.ZipEntry(name))
+                            file.inputStream().use { it.copyTo(zip) }
+                            zip.closeEntry()
+                        }
                     }
                 }
             } else {
-                val singleFile = if (hasBg) backgroundFile else cardBackgroundFile
                 java.io.BufferedOutputStream(output).use { out ->
-                    singleFile!!.inputStream().use { it.copyTo(out) }
+                    entries.single().second.inputStream().use { it.copyTo(out) }
                 }
             }
             Unit
         }
+    }
+
+    
+    fun exportImagesFileName(
+        hasBackground: Boolean,
+        hasCardBackground: Boolean,
+        stickerCount: Int,
+    ): String = when {
+        listOf(hasBackground, hasCardBackground).count { it } + stickerCount > 1 -> "SukiSU-images.zip"
+        hasBackground -> "SukiSU-background.png"
+        hasCardBackground -> "SukiSU-home-card.png"
+        stickerCount > 0 -> "SukiSU-sticker.png"
+        else -> "SukiSU-images.zip"
     }
 }

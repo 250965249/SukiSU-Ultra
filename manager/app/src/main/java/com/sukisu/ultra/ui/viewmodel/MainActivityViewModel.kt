@@ -3,14 +3,17 @@ package com.sukisu.ultra.ui.viewmodel
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Parcelable
+import androidx.core.content.edit
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sukisu.ultra.data.repository.SettingsRepository
 import com.sukisu.ultra.data.repository.SettingsRepositoryImpl
+import com.sukisu.ultra.data.repository.KEY_CUSTOM_APPEARANCE
 import com.sukisu.ultra.ksuApp
 import com.sukisu.ultra.ui.UiMode
 import com.sukisu.ultra.ui.theme.ThemeController
+import com.sukisu.ultra.ui.util.AdaptiveThemeStore
 import com.sukisu.ultra.ui.util.ImageStorage
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
@@ -24,7 +27,7 @@ class MainActivityViewModel(
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val prefs = ksuApp.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    private val prefs = ksuApp.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
     private val settingRepo: SettingsRepository = SettingsRepositoryImpl()
     private val mainPageState = MainPageState(savedStateHandle)
     @Volatile private var systemWallpaperCacheValidated = false
@@ -99,7 +102,8 @@ class MainActivityViewModel(
             systemWallpaperCacheValidated = result.path != null
             if (result.changed) {
                 settingRepo.customBackgroundUpdatedAt = System.currentTimeMillis()
-                if (settingRepo.extractColorFromBackground && result.path != null) {
+                // A manually picked key color wins over the background, see SettingsViewModel.
+                if (settingRepo.extractColorFromBackground && settingRepo.keyColor == 0 && result.path != null) {
                     settingRepo.keyColor = ImageStorage.extractSeedColor(File(result.path), settingRepo.keyColor)
                 }
             }
@@ -107,6 +111,18 @@ class MainActivityViewModel(
                 settingRepo.useSystemWallpaper = false
             }
             _uiState.value = readUiState()
+        }
+    }
+
+    /**
+     * Applies the light or dark half of an active adaptive theme when the system mode changes.
+     * The marker in AdaptiveThemeStore keeps this a no-op while the applied half is current.
+     */
+    fun syncAdaptiveTheme(dark: Boolean) {
+        viewModelScope.launch {
+            if (AdaptiveThemeStore.sync(settingRepo, dark)) {
+                _uiState.value = readUiState()
+            }
         }
     }
 
@@ -136,13 +152,24 @@ class MainActivityViewModel(
             cardBackgroundAlphaPercent = settingRepo.cardBackgroundAlphaPercent,
             customBackgroundBlurPercent = settingRepo.customBackgroundBlurPercent,
             customBackgroundScrimPercent = settingRepo.customBackgroundScrimPercent,
+            // While the settings screen is scoring a background seed it parks the previous color
+            // here, so the palette can stay put instead of re-deriving an intermediate one.
+            keyColorOverride = prefs.getInt(KEY_COLOR_PENDING, NO_PENDING_SEED)
+                .takeIf { it != NO_PENDING_SEED },
             uiMode = UiMode.fromValue(settingRepo.uiMode),
             customTexts = settingRepo.customTexts,
         )
     }
 
-    private companion object {
-        val observedKeys = setOf(
+    companion object {
+        const val SETTINGS_PREFS = "settings"
+
+        
+        const val KEY_COLOR_PENDING = "key_color_pending"
+
+        private const val NO_PENDING_SEED = Int.MIN_VALUE
+
+        private val observedKeys = setOf(
             "color_mode",
             "miuix_monet",
             "key_color",
@@ -162,8 +189,16 @@ class MainActivityViewModel(
             "card_bg_alpha_percent",
             "custom_bg_blur_percent",
             "custom_bg_scrim_percent",
+            KEY_COLOR_PENDING,
             "ui_mode",
             "custom_texts",
+            "adaptive_theme",
+            "adaptive_applied_mode",
+            KEY_CUSTOM_APPEARANCE,
+            "home_card_image_path",
+            "home_card_stickers",
+            "hide_home_card_status_text",
+            "hide_home_card_decoration",
         )
     }
 }

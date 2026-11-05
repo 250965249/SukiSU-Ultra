@@ -15,6 +15,8 @@ import com.sukisu.ultra.data.repository.SettingsRepository
 import com.sukisu.ultra.data.repository.SettingsRepositoryImpl
 import com.sukisu.ultra.ksuApp
 import com.sukisu.ultra.ui.theme.ColorMode
+import com.sukisu.ultra.ui.util.AdaptiveThemeStore
+import com.sukisu.ultra.ui.util.AppearanceOverlayStore
 import com.sukisu.ultra.ui.util.BuiltinAppIcons
 import com.sukisu.ultra.ui.util.CustomTextKey
 import com.sukisu.ultra.ui.util.ImageStorage
@@ -47,6 +49,11 @@ object AiThemeController : AiThemeService {
             put("color_mode_value", colorMode.value)
             put("miuix_monet", repo.miuixMonet)
             put("key_color", String.format("#%08X", repo.keyColor))
+            put("key_color_source", when {
+                repo.keyColor != 0 -> "manual"
+                repo.extractColorFromBackground -> "background"
+                else -> "system"
+            })
             put("color_style", repo.colorStyle)
             put("color_spec", repo.colorSpec)
             put("custom_home_title", repo.customHomeTitle)
@@ -93,7 +100,13 @@ object AiThemeController : AiThemeService {
             "ui_mode" -> setUiMode(text)
             "color_mode" -> setColorMode(text)
             "miuix_monet" -> setMiuixMonet(text.toBooleanValue())
-            "key_color" -> repo.keyColor = parseColor(text)
+            "key_color" -> {
+                // A manual seed replaces the one derived from the background; #00000000 is the
+                // default pick, which leaves the background (if any) in charge again.
+                val color = parseColor(text)
+                repo.keyColor = color
+                if (color != 0) repo.extractColorFromBackground = false
+            }
             "color_style" -> {
                 val style = PaletteStyle.entries.firstOrNull { it.name.equals(text, true) }
                     ?: throw IllegalArgumentException(
@@ -157,8 +170,13 @@ object AiThemeController : AiThemeService {
                 normalizedKey,
             )
 
-            "extract_color_from_background" ->
-                repo.extractColorFromBackground = text.toBooleanValue()
+            "extract_color_from_background" -> {
+                // Enabling it drops the manual key color (key_color #00000000 is the "default"
+                // pick), so the two seed sources are never on at the same time.
+                val enabled = text.toBooleanValue()
+                repo.extractColorFromBackground = enabled
+                if (enabled) repo.keyColor = 0
+            }
 
             "use_system_wallpaper" -> repo.useSystemWallpaper = text.toBooleanValue()
 
@@ -227,12 +245,14 @@ object AiThemeController : AiThemeService {
         read()
     }
 
-    /** Equivalent to Settings > Appearance "Reset" (card alpha/blur/scrim only). */
+    
     override suspend fun resetAppearance(): String = withContext(Dispatchers.IO) {
         repo.cardBackgroundAlphaPercent = ImageStorage.DEFAULT_CARD_ALPHA
         repo.customBackgroundBlurPercent = ImageStorage.defaultBackgroundBlurPercent(ksuApp)
         repo.customBackgroundScrimPercent = ImageStorage.DEFAULT_BACKGROUND_SCRIM
-        "Appearance reset: card alpha, background blur and scrim restored to defaults."
+        repo.hideHomeCardStatusText = false
+        repo.hideHomeCardDecoration = false
+        "Appearance reset: card alpha, background blur, scrim and home card text restored to defaults."
     }
 
     override suspend fun resetAllCustomTexts(): String = withContext(Dispatchers.IO) {
@@ -253,6 +273,8 @@ object AiThemeController : AiThemeService {
             "home_card", "home", "card" -> {
                 ImageStorage.clearHomeCardImage(ksuApp)
                 repo.homeCardImagePath = ""
+                repo.hideHomeCardStatusText = false
+                repo.hideHomeCardDecoration = false
                 "The home card image was removed."
             }
 
@@ -267,6 +289,8 @@ object AiThemeController : AiThemeService {
             data = buildThemePackageData(),
             backgroundFile = currentBackgroundFile(),
             cardBackgroundFile = currentHomeCardFile(),
+            cardStickerFiles = currentStickerFiles(),
+            adaptive = AdaptiveThemeStore.exportPayload(repo),
         ).getOrThrow()
         "Theme package exported to the selected location."
     }
@@ -278,6 +302,8 @@ object AiThemeController : AiThemeService {
             data = buildThemePackageData(),
             backgroundFile = currentBackgroundFile(),
             cardBackgroundFile = currentHomeCardFile(),
+            cardStickerFiles = currentStickerFiles(),
+            adaptive = AdaptiveThemeStore.exportPayload(repo),
         ).getOrThrow()
         val uri = FileProvider.getUriForFile(
             ksuApp,
@@ -314,6 +340,11 @@ object AiThemeController : AiThemeService {
             customBackgroundScrimPercent = repo.customBackgroundScrimPercent,
             hasBackground = currentBackgroundFile() != null,
             hasCardBackground = currentHomeCardFile() != null,
+            hideHomeCardStatusText = repo.hideHomeCardStatusText,
+            hideHomeCardDecoration = repo.hideHomeCardDecoration,
+            homeCardStickerTransforms = repo.homeCardStickers
+                .filter { File(it.path).isFile }
+                .map { it.transform },
             uiMode = repo.uiMode,
             appIconId = repo.appIconId.takeIf { it in builtinIconIds } ?: BuiltinAppIcons.DEFAULT_ID,
             enableFloatingBottomBar = repo.enableFloatingBottomBar,
@@ -330,6 +361,7 @@ object AiThemeController : AiThemeService {
             moduleSortManual = repo.moduleSortManual,
             customHomeTitle = repo.customHomeTitle.takeIf { it.isNotBlank() },
             customTexts = repo.customTexts.takeIf { it.isNotEmpty() },
+            appearance = AppearanceOverlayStore.data(repo),
         )
     }
 
@@ -344,12 +376,15 @@ object AiThemeController : AiThemeService {
         repo.homeCardImagePath.takeIf { it.isNotBlank() }
             ?.let(::File)?.takeIf { it.isFile }
 
+    private fun currentStickerFiles(): List<File> =
+        repo.homeCardStickers.map { File(it.path) }.filter { it.isFile }
+
     private fun hasBackgroundImage(): Boolean =
         repo.useSystemWallpaper || repo.customBackgroundUri.isNotBlank()
 
     private fun hasHomeCardImage(): Boolean = repo.homeCardImagePath.isNotBlank()
 
-    /** Full list of custom text keys, so the model can choose a valid one. */
+    
     override fun customTextKeysJson(): String = buildJsonArray {
         CustomTextKey.entries.forEach { key ->
             add(
@@ -362,13 +397,18 @@ object AiThemeController : AiThemeService {
         }
     }.toString()
 
-    /** Compact appearance summary used in the environment snapshot. */
+    
     override suspend fun summaryJson(): String = withContext(Dispatchers.IO) {
         buildJsonObject {
             put("ui_mode", repo.uiMode)
             put("color_mode", ColorMode.fromValue(repo.themeMode).name.lowercase())
             put("miuix_monet", repo.miuixMonet)
             put("key_color", String.format("#%08X", repo.keyColor))
+            put("key_color_source", when {
+                repo.keyColor != 0 -> "manual"
+                repo.extractColorFromBackground -> "background"
+                else -> "system"
+            })
             put("color_style", repo.colorStyle)
             put("color_spec", repo.colorSpec)
             put("custom_home_title", repo.customHomeTitle)
@@ -385,7 +425,7 @@ object AiThemeController : AiThemeService {
         }.toString()
     }
 
-    /** Allowed values for the fixed-choice theme keys. */
+    
     override fun optionsJson(): String = buildJsonObject {
         put("keys", buildJsonArray {
             listOf(

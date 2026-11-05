@@ -1,26 +1,66 @@
 package com.sukisu.ultra.data.repository
 
+import com.sukisu.ultra.ui.util.HomeCardSticker
+
 interface SettingsRepository {
     var customBackgroundUri: String
     var customBackgroundUpdatedAt: Long
-    /** Use the launcher wallpaper as the app background instead of [customBackgroundUri]. */
+    
     var useSystemWallpaper: Boolean
-    /** Derive the theme key color from the active background image. */
+    /**
+     * Derive the theme key color from the active background image. This and [keyColor] are
+     * mutually exclusive: a non-zero [keyColor] wins, so read through
+     * [com.sukisu.ultra.ui.viewmodel.derivesKeyColorFromBackground] instead of the raw flag.
+     */
     var extractColorFromBackground: Boolean
     var cardBackgroundAlphaPercent: Int
     var customBackgroundBlurPercent: Int
     var customBackgroundScrimPercent: Int
     var backgroundAppearanceExpanded: Boolean
+    
+    var backgroundSectionExpanded: Boolean
+    var themePackageSectionExpanded: Boolean
+    var appearanceSectionExpanded: Boolean
+    var homeCardSectionExpanded: Boolean
+    var colorsSectionExpanded: Boolean
     var customHomeTitle: String
     var customTexts: Map<String, String>
+    
+    var themeStoreBaseUrl: String
+    
+    var themeStoreToken: String
+    
+    var themeStoreAuthorId: String
+    
+    var themeStoreAuthorName: String
+    
+    var themeStoreAdminUrl: String
+    
+    var themeStoreExtraSources: List<com.sukisu.ultra.data.model.ThemeStoreSourceConfig>
+    
+    var themeStoreUploadSource: String
+    var themeStoreGridLayout: Boolean
     var homeCardImagePath: String
+    
+    var hideHomeCardStatusText: Boolean
+    
+    var hideHomeCardDecoration: Boolean
+    var homeCardStickers: List<HomeCardSticker>
+    
+    var adaptiveThemeJson: String
+    
+    var adaptiveAppliedMode: Int
+    
+    var adaptiveDraftJson: String
+    /** Canonical JSON for the static colour/image-effect overlay; empty when disabled. */
+    var customAppearanceJson: String
     var uiMode: String
     var appLanguage: String
     var checkUpdate: Boolean
     var checkCiUpdate: Boolean
     var checkModuleUpdate: Boolean
     var autoDeleteModuleZip: Boolean
-    /** Id of the selected launcher icon (see [com.sukisu.ultra.ui.util.BuiltinAppIcons]). */
+    
     var appIconId: String
     var appIconDynamicColor: Boolean
     var themeMode: Int
@@ -47,7 +87,7 @@ interface SettingsRepository {
     var moduleSortNameOrder: String
     var moduleSortManual: Boolean
     var moduleManualOrder: String
-    /** Name of the [com.sukisu.ultra.ui.screen.modulerepo.RepoSort] entry. */
+    
     var moduleRepoSortOrder: String
     var superuserShowSystemApps: Boolean
     var superuserShowOnlyPrimaryUserApps: Boolean
@@ -55,7 +95,7 @@ interface SettingsRepository {
     var suLogFilters: Set<String>?
     var showFullStatus: Boolean
     var hideHomeWarnings: Boolean
-    /** Show the AI assistant card on the home page. Off disconnects the home entry entirely. */
+    
     var showAiHomeCard: Boolean
     var autoJailbreak: Boolean
     var useSoftReboot: Boolean

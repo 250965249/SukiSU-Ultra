@@ -100,6 +100,7 @@ import com.materialkolor.dynamiccolor.ColorSpec
 import com.sukisu.ultra.BuildConfig
 import com.sukisu.ultra.R
 import com.sukisu.ultra.ui.component.material.IconTile
+import com.sukisu.ultra.ui.component.HomeCardStickerOverlays
 import com.sukisu.ultra.ui.component.material.SegmentedColumn
 import com.sukisu.ultra.ui.component.material.SegmentedListItem
 import com.sukisu.ultra.ui.component.material.expressiveTopAppBarColors
@@ -112,11 +113,16 @@ import com.sukisu.ultra.ui.theme.LocalCardBackgroundAlpha
 import com.sukisu.ultra.ui.theme.LocalColorMode
 import com.sukisu.ultra.ui.theme.Shapes
 import com.sukisu.ultra.ui.theme.Typography
+import com.sukisu.ultra.ui.theme.appearanceImageEffects
 import com.sukisu.ultra.ui.theme.backgroundAwareCardColors
 import com.sukisu.ultra.ui.theme.backgroundAwareColor
 import com.sukisu.ultra.ui.theme.effectiveFor
 import com.sukisu.ultra.ui.theme.rememberKernelSUColorScheme
+import com.sukisu.ultra.ui.theme.withAppearance
 import com.sukisu.ultra.ui.util.ImageStorage
+import com.sukisu.ultra.ui.util.HomeCardSticker
+import com.sukisu.ultra.ui.util.ResolvedAppearance
+import com.sukisu.ultra.ui.util.drawPainterCover
 import top.yukonga.miuix.kmp.basic.Badge as MiuixBadge
 import top.yukonga.miuix.kmp.basic.BadgedBox as MiuixBadgedBox
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -157,6 +163,10 @@ internal data class ThemePreviewSpec(
     val pageScale: Float = 1f,
     val customHomeTitle: String = "",
     val homeCardImagePath: String = "",
+    val hideHomeCardText: Boolean = false,
+    val hideHomeCardDecoration: Boolean = false,
+    val homeCardStickers: List<HomeCardSticker> = emptyList(),
+    val appearance: ResolvedAppearance? = null,
 )
 
 private const val PreviewDesignWidthDp = 360f
@@ -238,19 +248,23 @@ internal fun ThemePreviewMiuix(
             )
         },
     ) {
+        val overlayTokens = spec.appearance?.colorsFor(spec.isDark)
         MiuixTheme(controller = controller) {
-            CompositionLocalProvider(
-                LocalColorMode provides if (spec.isDark) ColorMode.DARK.value else ColorMode.LIGHT.value,
-                LocalBackgroundImagePath provides spec.backgroundPath,
-                LocalCardBackgroundAlpha provides spec.cardAlpha,
-            ) {
-                val colors = MiuixTheme.colorScheme
-                PreviewDevice(
-                    spec = spec,
-                    screenColor = colors.surface,
-                    contentColor = colors.onBackground,
-                ) { screenModifier ->
-                    MiuixPreviewScreen(spec, screenModifier)
+            val themedColors = MiuixTheme.colorScheme.withAppearance(overlayTokens)
+            MiuixTheme(themedColors) {
+                CompositionLocalProvider(
+                    LocalColorMode provides if (spec.isDark) ColorMode.DARK.value else ColorMode.LIGHT.value,
+                    LocalBackgroundImagePath provides spec.backgroundPath,
+                    LocalCardBackgroundAlpha provides spec.cardAlpha,
+                ) {
+                    val colors = MiuixTheme.colorScheme
+                    PreviewDevice(
+                        spec = spec,
+                        screenColor = colors.surface,
+                        contentColor = colors.onBackground,
+                    ) { screenModifier ->
+                        MiuixPreviewScreen(spec, screenModifier)
+                    }
                 }
             }
         }
@@ -286,9 +300,13 @@ internal fun ThemePreviewMaterial(
             )
         }
     }
+    val overlayTokens = spec.appearance?.colorsFor(spec.isDark)
+    val themedScheme = remember(previewScheme, overlayTokens) {
+        previewScheme.withAppearance(overlayTokens)
+    }
 
     MaterialExpressiveTheme(
-        colorScheme = previewScheme,
+        colorScheme = themedScheme,
         motionScheme = MotionScheme.expressive(),
         shapes = Shapes,
         typography = Typography,
@@ -420,12 +438,14 @@ private fun PreviewBackgroundImage(spec: ThemePreviewSpec) {
     val context = LocalContext.current
     val blurRadius = (ImageStorage.BACKGROUND_BLUR_MAX_RADIUS_DP * spec.backgroundBlurPercent / 100f).dp
     val request = remember(spec.backgroundPath, spec.backgroundUpdatedAt) {
-        // Same recipe as the real background: the mtime parameter invalidates the cache after a
-        // re-crop even though the file path stays the same.
+        // Same recipe as the real background: the mtime is part of the cache key so a re-crop
+        // that keeps the same file path cannot be served from Coil's caches.
         val file = File(spec.backgroundPath)
+        val stamp = file.lastModified()
         ImageRequest.Builder(context)
             .data(file)
-            .setParameter("mtime", file.lastModified(), memoryCacheKey = null)
+            .memoryCacheKey("${file.absolutePath}@$stamp")
+            .diskCacheKey("${file.absolutePath}@$stamp")
             .build()
     }
 
@@ -435,7 +455,11 @@ private fun PreviewBackgroundImage(spec: ThemePreviewSpec) {
         contentScale = ContentScale.Crop,
         modifier = Modifier
             .fillMaxSize()
-            .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier),
+            .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier)
+            .appearanceImageEffects(
+                spec.appearance?.background,
+                allowSharpen = blurRadius <= 0.dp,
+            ),
     )
 
     val scrimPercent = spec.backgroundScrimPercent
@@ -615,7 +639,7 @@ private fun MiuixPreviewHeroCard(spec: ThemePreviewSpec) {
             .clip(RoundedCornerShape(CardDefaults.CornerRadius))
             .then(
                 if (cardImagePainter != null) {
-                    Modifier.drawBehind { with(cardImagePainter) { draw(size) } }
+                    Modifier.drawPainterCover(cardImagePainter)
                 } else {
                     Modifier
                 }
@@ -625,16 +649,18 @@ private fun MiuixPreviewHeroCard(spec: ThemePreviewSpec) {
             contentColor = colors.onSurface,
         ),
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            MiuixIcon(
-                imageVector = Icons.Rounded.CheckCircleOutline,
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(x = 20.dp, y = 22.dp)
-                    .size(112.dp),
-                tint = accentColor.copy(alpha = if (spec.miuixMonet) 0.8f else 1f),
-            )
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            if (!(spec.homeCardImagePath.isNotEmpty() && spec.hideHomeCardDecoration)) {
+                MiuixIcon(
+                    imageVector = Icons.Rounded.CheckCircleOutline,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 20.dp, y = 22.dp)
+                        .size(112.dp),
+                    tint = accentColor.copy(alpha = if (spec.miuixMonet) 0.8f else 1f),
+                )
+            }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -654,20 +680,26 @@ private fun MiuixPreviewHeroCard(spec: ThemePreviewSpec) {
                     )
                 }
                 Column {
-                    MiuixText(
-                        text = stringResource(R.string.home_working),
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onSurface,
-                    )
-                    MiuixText(
-                        text = BuildConfig.VERSION_NAME,
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = colors.onSurfaceVariantSummary,
-                    )
+                    if (!(spec.homeCardImagePath.isNotEmpty() && spec.hideHomeCardText)) {
+                        MiuixText(
+                            text = stringResource(R.string.home_working),
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurface,
+                        )
+                        MiuixText(
+                            text = BuildConfig.VERSION_NAME,
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = colors.onSurfaceVariantSummary,
+                        )
+                    }
                 }
             }
+            HomeCardStickerOverlays(
+                stickers = spec.homeCardStickers,
+                cardWidth = maxWidth,
+            )
         }
     }
 }
@@ -1002,7 +1034,7 @@ private fun MaterialPreviewHeroCard(spec: ThemePreviewSpec) {
             .clip(heroShape)
             .then(
                 if (cardImagePainter != null) {
-                    Modifier.drawBehind { with(cardImagePainter) { draw(size) } }
+                    Modifier.drawPainterCover(cardImagePainter)
                 } else {
                     Modifier
                 }
@@ -1010,8 +1042,8 @@ private fun MaterialPreviewHeroCard(spec: ThemePreviewSpec) {
         shape = heroShape,
         color = if (cardImagePainter != null) Color.Transparent else backgroundAwareColor(colors.primary),
     ) {
-        Box(
-            modifier = if (cardImagePainter != null) {
+        BoxWithConstraints(
+            modifier = if (spec.homeCardImagePath.isNotEmpty() && spec.hideHomeCardDecoration) {
                 Modifier.fillMaxSize()
             } else {
                 Modifier
@@ -1038,18 +1070,24 @@ private fun MaterialPreviewHeroCard(spec: ThemePreviewSpec) {
                     )
                 }
                 Column {
-                    MaterialText(
-                        text = stringResource(R.string.home_working),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Black,
-                    )
-                    MaterialText(
-                        text = BuildConfig.VERSION_NAME,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontFamily = FontFamily.Monospace,
-                    )
+                    if (!(spec.homeCardImagePath.isNotEmpty() && spec.hideHomeCardText)) {
+                        MaterialText(
+                            text = stringResource(R.string.home_working),
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Black,
+                        )
+                        MaterialText(
+                            text = BuildConfig.VERSION_NAME,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
                 }
             }
+            HomeCardStickerOverlays(
+                stickers = spec.homeCardStickers,
+                cardWidth = maxWidth,
+            )
         }
     }
 }
