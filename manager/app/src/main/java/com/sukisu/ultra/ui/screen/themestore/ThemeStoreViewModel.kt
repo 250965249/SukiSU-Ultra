@@ -21,7 +21,11 @@ import com.sukisu.ultra.data.model.ThemeComment
 import com.sukisu.ultra.data.model.ThemeStoreEntry
 import com.sukisu.ultra.data.repository.AccountRepository
 import com.sukisu.ultra.data.repository.SettingsRepositoryImpl
+import com.sukisu.ultra.data.repository.ThemeCatalogLoad
 import com.sukisu.ultra.data.repository.ThemeStoreDefaults
+import com.sukisu.ultra.data.repository.ThemeStoreHistoryEntry
+import com.sukisu.ultra.data.repository.ThemeStoreHistoryKind
+import com.sukisu.ultra.data.repository.ThemeStoreHistoryStore
 import com.sukisu.ultra.data.repository.ThemeStoreRepository
 import com.sukisu.ultra.data.repository.ThemeStoreConsentStore
 import com.sukisu.ultra.data.repository.ThemeStoreSubmission
@@ -151,6 +155,8 @@ data class ThemeStoreUiState(
     val followError: String? = null,
     val items: List<ThemeStoreItem> = emptyList(),
     val sources: List<ThemeStoreSource> = emptyList(),
+    val viewedHistory: List<ThemeStoreHistoryEntry> = emptyList(),
+    val downloadedHistory: List<ThemeStoreHistoryEntry> = emptyList(),
     val fromCache: Boolean = false,
     val maintenance: Boolean = false,
     val failedSources: Int = 0,
@@ -244,6 +250,7 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
     private val settings = SettingsRepositoryImpl()
     private val account = AccountRepository(application)
     private val consentStore = ThemeStoreConsentStore(application)
+    private val historyStore = ThemeStoreHistoryStore(application)
     private val initialConsent = consentStore.read()
     private var followsJob: kotlinx.coroutines.Job? = null
     private var loadJob: kotlinx.coroutines.Job? = null
@@ -258,16 +265,22 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
             gridLayout = settings.themeStoreGridLayout,
             needsConsent = initialConsent == null,
             showR18 = initialConsent?.showR18 == true,
+            viewedHistory = historyStore.read(ThemeStoreHistoryKind.VIEWED),
+            downloadedHistory = historyStore.read(ThemeStoreHistoryKind.DOWNLOADED),
         ),
     )
     val uiState: StateFlow<ThemeStoreUiState> = _uiState.asStateFlow()
 
     init {
-        if (initialConsent != null) load()
+        if (initialConsent != null) {
+            load()
+        }
         viewModelScope.launch {
             while (true) {
                 kotlinx.coroutines.delay(10 * 60 * 1000L)
-                if (!_uiState.value.needsConsent) load()
+                if (!_uiState.value.needsConsent) {
+                    load()
+                }
             }
         }
         viewModelScope.launch(Dispatchers.IO) {
@@ -328,19 +341,15 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
                 }
             }
             val results = sources
-                .map { source -> async {
-                    val credential = repository.accessToken(source.baseUrl, source.token)
-                    val resolved = source.copy(token = credential.getOrNull() ?: source.token)
-                    resolved to credential.fold(onSuccess = { repository.loadCatalog(resolved.baseUrl, it) }, onFailure = { Result.failure(it) })
-                } }
+                .map { source -> async { loadSource(source) } }
                 .awaitAll()
             val successes = results.filter { it.second.isSuccess }
             val catalogs = successes.map { (source, result) -> source to result.getOrThrow() }
             val sourceOrder = sources.mapIndexed { index, source -> source.id to index }.toMap()
-            // A maintenance source contributes no items. When every reachable source is under
-            // maintenance the store shows a dedicated screen instead of a misleading empty grid.
-            val maintenance = catalogs.isNotEmpty() &&
-                catalogs.all { it.second.catalog.maintenance }
+            val liveCatalogs = catalogs.filterNot { it.second.fromCache }
+            val maintenanceCatalogs = liveCatalogs.ifEmpty { catalogs }
+            val maintenance = maintenanceCatalogs.isNotEmpty() &&
+                maintenanceCatalogs.all { it.second.catalog.maintenance }
             val items = catalogs
                 .filterNot { it.second.catalog.maintenance }
                 .flatMap { (source, load) ->
@@ -373,6 +382,48 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
                 )
             }
         }
+    }
+
+    /**
+     * Loads one source. When a regional primary mirror is unreachable, the next
+     * built-in mirror is tried once and the returned source carries the host
+     * that answered, so downloads and uploads stay on the working mirror.
+     */
+    private suspend fun loadSource(
+        source: ThemeStoreSource,
+    ): Pair<ThemeStoreSource, Result<ThemeCatalogLoad>> {
+        val primary = fetchSource(source, source.baseUrl)
+        if (primary.second.getOrNull()?.fromCache == false) {
+            ThemeStoreDefaults.reportReachable(source.baseUrl)
+            return primary
+        }
+        // An authentication failure is not a connectivity problem; retrying on
+        // another mirror would hide the real error.
+        if (primary.second.exceptionOrNull() is ThemeStoreUnauthorizedException) return primary
+        val fallbackBase = ThemeStoreDefaults.fallbackBaseUrl(source.baseUrl) ?: return primary
+        ThemeStoreDefaults.reportUnreachable(source.baseUrl)
+        val retry = fetchSource(source, fallbackBase)
+        if (retry.second.getOrNull()?.fromCache == false) {
+            ThemeStoreDefaults.reportReachable(fallbackBase)
+            return retry
+        }
+        return when {
+            primary.second.isSuccess -> primary
+            retry.second.isSuccess -> retry
+            else -> primary
+        }
+    }
+
+    private suspend fun fetchSource(
+        source: ThemeStoreSource,
+        baseUrl: String,
+    ): Pair<ThemeStoreSource, Result<ThemeCatalogLoad>> {
+        val credential = repository.accessToken(baseUrl, source.token)
+        val resolved = source.copy(baseUrl = baseUrl, token = credential.getOrNull() ?: source.token)
+        return resolved to credential.fold(
+            onSuccess = { repository.loadCatalog(baseUrl, it) },
+            onFailure = { Result.failure(it) },
+        )
     }
 
     fun setGridLayout(enabled: Boolean) {
@@ -647,6 +698,51 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
             }
         }
 
+    private fun historyEntry(item: ThemeStoreItem): ThemeStoreHistoryEntry =
+        ThemeStoreHistoryEntry(
+            key = item.key,
+            themeId = item.entry.id,
+            name = item.entry.name,
+            author = item.entry.author,
+            sourceId = item.source.id,
+            baseUrl = item.source.baseUrl,
+            previewPath = item.entry.previewPath.ifBlank {
+                item.entry.screenshotPaths.firstOrNull().orEmpty()
+            },
+            createdAt = System.currentTimeMillis(),
+            r18 = item.isR18Theme(),
+            adaptive = item.isAdaptiveTheme(),
+        )
+
+    fun recordView(item: ThemeStoreItem) {
+        historyStore.record(ThemeStoreHistoryKind.VIEWED, historyEntry(item))
+        refreshHistory()
+    }
+
+    private fun recordDownload(item: ThemeStoreItem) {
+        historyStore.record(ThemeStoreHistoryKind.DOWNLOADED, historyEntry(item))
+        refreshHistory()
+    }
+
+    fun refreshHistory() {
+        _uiState.update {
+            it.copy(
+                viewedHistory = historyStore.read(ThemeStoreHistoryKind.VIEWED),
+                downloadedHistory = historyStore.read(ThemeStoreHistoryKind.DOWNLOADED),
+            )
+        }
+    }
+
+    fun clearHistory(kind: ThemeStoreHistoryKind) {
+        historyStore.clear(kind)
+        refreshHistory()
+    }
+
+    fun removeHistory(kind: ThemeStoreHistoryKind, keys: Set<String>) {
+        historyStore.remove(kind, keys)
+        refreshHistory()
+    }
+
     fun download(item: ThemeStoreItem, trial: Boolean = false) {
         val current = _uiState.value
         if (current.downloadingKey != null) return
@@ -718,6 +814,7 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
                             verifiedThemeKey = item.key,
                         )
                     }
+                    recordDownload(item)
                 },
                 onFailure = {
                     _uiState.update {
@@ -1757,8 +1854,8 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun configuredSources(): List<ThemeStoreSource> {
         val result = mutableListOf<ThemeStoreSource>()
-        val builtInBase = ThemeStoreRepository.normalizeBaseUrl(ThemeStoreDefaults.BASE_URL)
-        val configuredBase = settings.themeStoreBaseUrl.ifBlank { ThemeStoreDefaults.BASE_URL }
+        val builtInBase = ThemeStoreRepository.normalizeBaseUrl(ThemeStoreDefaults.preferredBaseUrl())
+        val configuredBase = ThemeStoreDefaults.resolveConfiguredBaseUrl(settings.themeStoreBaseUrl)
         val defaultBase = ThemeStoreRepository.normalizeBaseUrl(configuredBase)
         if (defaultBase != null) {
             val defaultToken = when {

@@ -181,6 +181,7 @@ internal fun formatStoreCount(value: Long): String {
 fun ThemeStoreScreen(
     viewModel: ThemeStoreViewModel = viewModel(),
     startAdaptiveUpload: Boolean = false,
+    startCurrentUpload: Boolean = false,
     initialThemeId: String? = null,
     initialSourceBaseUrl: String? = null,
 ) {
@@ -192,12 +193,16 @@ fun ThemeStoreScreen(
     var showUpload by rememberSaveable { mutableStateOf(false) }
     var showSubmissions by rememberSaveable { mutableStateOf(false) }
     var showMessages by rememberSaveable { mutableStateOf(false) }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
     var showPreferences by rememberSaveable { mutableStateOf(false) }
     var showConsentDialog by rememberSaveable { mutableStateOf(false) }
     var showAccountPicker by rememberSaveable { mutableStateOf(false) }
     var pendingAdaptiveTheme by rememberSaveable { mutableStateOf(false) }
+    var pendingCurrentTheme by rememberSaveable { mutableStateOf(false) }
     var adaptiveUploadHandled by rememberSaveable(startAdaptiveUpload) { mutableStateOf(false) }
     var adaptiveAccountRedirected by rememberSaveable(startAdaptiveUpload) { mutableStateOf(false) }
+    var currentUploadHandled by rememberSaveable(startCurrentUpload) { mutableStateOf(false) }
+    var currentAccountRedirected by rememberSaveable(startCurrentUpload) { mutableStateOf(false) }
     var selectedUploadBaseUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var editingThemeId by rememberSaveable { mutableStateOf<String?>(null) }
     var editingThemeBaseUrl by rememberSaveable { mutableStateOf<String?>(null) }
@@ -227,7 +232,10 @@ fun ThemeStoreScreen(
             candidate.entry.id == initialThemeId &&
                 (initialSourceBaseUrl == null || candidate.source.baseUrl.trimEnd('/') == initialSourceBaseUrl.trimEnd('/'))
         }
-        if (item != null) selectedItemKey = item.key
+        if (item != null) {
+            viewModel.recordView(item)
+            selectedItemKey = item.key
+        }
         deepLinkHandled = true
     }
     val allTags = remember(catalogItems) { catalogItems.popularThemeTags(Int.MAX_VALUE) }
@@ -310,6 +318,30 @@ fun ThemeStoreScreen(
         pendingAdaptiveTheme = true
         adaptiveUploadHandled = true
         // Returning from the account page after login should land directly on the upload form.
+        if (navigator.current() is Route.ThemeAccount) navigator.pop()
+        if (accounts.size == 1) {
+            openUpload(accounts.single())
+        } else {
+            showAccountPicker = true
+        }
+    }
+
+    // Entered from the theme settings export dialog: open the upload form straight away and let
+    // the form generate a package from the options the user just picked.
+    LaunchedEffect(startCurrentUpload, state.loaded, state.accounts) {
+        if (!startCurrentUpload || currentUploadHandled) return@LaunchedEffect
+        if (!state.loaded) return@LaunchedEffect
+        if (state.needsConfig) return@LaunchedEffect
+        val accounts = state.accounts
+        if (accounts.isEmpty()) {
+            if (!currentAccountRedirected) {
+                currentAccountRedirected = true
+                navigator.navigateTo(Route.ThemeAccount())
+            }
+            return@LaunchedEffect
+        }
+        pendingCurrentTheme = true
+        currentUploadHandled = true
         if (navigator.current() is Route.ThemeAccount) navigator.pop()
         if (accounts.size == 1) {
             openUpload(accounts.single())
@@ -520,6 +552,10 @@ fun ThemeStoreScreen(
         showMessages = false
     }
 
+    BackHandler(enabled = showHistory && detailItem == null && currentAuthor == null) {
+        showHistory = false
+    }
+
     when {
         showPreferences -> ThemeStorePreferencesScreen(
             consentAccepted = !state.needsConsent,
@@ -571,6 +607,7 @@ fun ThemeStoreScreen(
             onBack = ::closeAuthorPage,
             onSelect = { item ->
                 detailReturnAuthor = currentAuthor
+                viewModel.recordView(item)
                 selectedItemKey = item.key
             },
             onDownload = viewModel::download,
@@ -593,6 +630,8 @@ fun ThemeStoreScreen(
             onDone = {
                 showUpload = false
                 pendingAdaptiveTheme = false
+                pendingCurrentTheme = false
+                settingsViewModel.clearPendingThemeUploadOptions()
                 editingThemeId = null
                 editingThemeBaseUrl = null
                 showSubmissions = returnToSubmissions
@@ -607,6 +646,7 @@ fun ThemeStoreScreen(
             autoThemeId = state.uploadThemeId,
             editingTheme = editingTheme,
             initialAdaptiveTheme = pendingAdaptiveTheme,
+            initialCurrentTheme = pendingCurrentTheme,
             optionsLoading = state.uploadOptionsLoading,
             optionsError = state.uploadOptionsError,
             uploadPhase = state.uploadPhase,
@@ -621,6 +661,8 @@ fun ThemeStoreScreen(
                 if (!state.submitting) {
                     showUpload = false
                     pendingAdaptiveTheme = false
+                    pendingCurrentTheme = false
+                    settingsViewModel.clearPendingThemeUploadOptions()
                     editingThemeId = null
                     editingThemeBaseUrl = null
                     showSubmissions = returnToSubmissions
@@ -639,6 +681,36 @@ fun ThemeStoreScreen(
             onSubmit = { input -> viewModel.submit(input, uploadSource) },
             onExportCurrentPreset = { settingsViewModel.createCurrentThemePackage(context).getOrNull() },
             onLoadAdaptiveTheme = { settingsViewModel.createAdaptiveThemePackage(context).getOrNull() },
+        )
+
+        showHistory -> ThemeStoreHistoryScreen(
+            viewedHistory = if (state.showR18) state.viewedHistory
+                else state.viewedHistory.filterNot { it.r18 },
+            downloadedHistory = if (state.showR18) state.downloadedHistory
+                else state.downloadedHistory.filterNot { it.r18 },
+            sources = state.sources,
+            onBack = { showHistory = false },
+            onOpen = { entry ->
+                val item = state.items.firstOrNull { it.key == entry.key }
+                    ?: state.items.firstOrNull {
+                        it.entry.id == entry.themeId && it.source.baseUrl == entry.baseUrl
+                    }
+                if (item != null) {
+                    viewModel.recordView(item)
+                    selectedAuthor = null
+                    detailReturnAuthor = null
+                    authorReturnItemKey = null
+                    selectedItemKey = item.key
+                } else {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.theme_store_history_missing),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            },
+            onClear = viewModel::clearHistory,
+            onDelete = viewModel::removeHistory,
         )
 
         showMessages -> ThemeStoreMessagesScreen(
@@ -736,6 +808,17 @@ fun ThemeStoreScreen(
                 viewModel.clearUploadState()
                 showMessages = true
             },
+            onOpenHistory = {
+                viewModel.refreshHistory()
+                showUpload = false
+                showSubmissions = false
+                showMessages = false
+                editingThemeId = null
+                editingThemeBaseUrl = null
+                returnToSubmissions = false
+                viewModel.clearUploadState()
+                showHistory = true
+            },
             onOpenUpload = {
                 val preferred = viewModel.preferredUploadAccount()
                 val accounts = viewModel.uiState.value.accounts
@@ -765,6 +848,7 @@ fun ThemeStoreScreen(
                 selectedAuthor = null
                 detailReturnAuthor = null
                 authorReturnItemKey = null
+                viewModel.recordView(item)
                 selectedItemKey = item.key
             },
             onAuthorClick = ::openAuthor,
@@ -1106,6 +1190,7 @@ private fun ThemeStoreMaterial(
     onOpenAccount: () -> Unit,
     onOpenSubmissions: () -> Unit,
     onOpenMessages: () -> Unit,
+    onOpenHistory: () -> Unit,
     onOpenUpload: () -> Unit,
     onInstallLocal: () -> Unit,
     onSelect: (ThemeStoreItem) -> Unit,
@@ -1209,7 +1294,7 @@ private fun ThemeStoreMaterial(
                                 text = { MaterialText(stringResource(R.string.theme_store_my_content_title)) },
                                 leadingIcon = {
                                     MaterialIcon(
-                                        imageVector = Icons.Rounded.History,
+                                        imageVector = Icons.Rounded.Palette,
                                         contentDescription = null,
                                     )
                                 },
@@ -1217,6 +1302,20 @@ private fun ThemeStoreMaterial(
                                 onClick = {
                                     menuExpanded = false
                                     onOpenSubmissions()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { MaterialText(stringResource(R.string.theme_store_history_title)) },
+                                leadingIcon = {
+                                    MaterialIcon(
+                                        imageVector = Icons.Rounded.History,
+                                        contentDescription = null,
+                                    )
+                                },
+                                enabled = !state.maintenance,
+                                onClick = {
+                                    menuExpanded = false
+                                    onOpenHistory()
                                 },
                             )
                             DropdownMenuItem(
