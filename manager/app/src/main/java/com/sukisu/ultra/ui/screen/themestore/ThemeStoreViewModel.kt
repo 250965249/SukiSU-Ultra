@@ -21,6 +21,7 @@ import com.sukisu.ultra.data.model.ThemeComment
 import com.sukisu.ultra.data.model.ThemeStoreEntry
 import com.sukisu.ultra.data.repository.AccountRepository
 import com.sukisu.ultra.data.repository.SettingsRepositoryImpl
+import com.sukisu.ultra.data.repository.ThemeCatalogLoad
 import com.sukisu.ultra.data.repository.ThemeStoreDefaults
 import com.sukisu.ultra.data.repository.ThemeStoreHistoryEntry
 import com.sukisu.ultra.data.repository.ThemeStoreHistoryKind
@@ -271,11 +272,15 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
     val uiState: StateFlow<ThemeStoreUiState> = _uiState.asStateFlow()
 
     init {
-        if (initialConsent != null) load()
+        if (initialConsent != null) {
+            load()
+        }
         viewModelScope.launch {
             while (true) {
                 kotlinx.coroutines.delay(10 * 60 * 1000L)
-                if (!_uiState.value.needsConsent) load()
+                if (!_uiState.value.needsConsent) {
+                    load()
+                }
             }
         }
         viewModelScope.launch(Dispatchers.IO) {
@@ -336,11 +341,7 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
                 }
             }
             val results = sources
-                .map { source -> async {
-                    val credential = repository.accessToken(source.baseUrl, source.token)
-                    val resolved = source.copy(token = credential.getOrNull() ?: source.token)
-                    resolved to credential.fold(onSuccess = { repository.loadCatalog(resolved.baseUrl, it) }, onFailure = { Result.failure(it) })
-                } }
+                .map { source -> async { loadSource(source) } }
                 .awaitAll()
             val successes = results.filter { it.second.isSuccess }
             val catalogs = successes.map { (source, result) -> source to result.getOrThrow() }
@@ -381,6 +382,48 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
                 )
             }
         }
+    }
+
+    /**
+     * Loads one source. When a regional primary mirror is unreachable, the next
+     * built-in mirror is tried once and the returned source carries the host
+     * that answered, so downloads and uploads stay on the working mirror.
+     */
+    private suspend fun loadSource(
+        source: ThemeStoreSource,
+    ): Pair<ThemeStoreSource, Result<ThemeCatalogLoad>> {
+        val primary = fetchSource(source, source.baseUrl)
+        if (primary.second.getOrNull()?.fromCache == false) {
+            ThemeStoreDefaults.reportReachable(source.baseUrl)
+            return primary
+        }
+        // An authentication failure is not a connectivity problem; retrying on
+        // another mirror would hide the real error.
+        if (primary.second.exceptionOrNull() is ThemeStoreUnauthorizedException) return primary
+        val fallbackBase = ThemeStoreDefaults.fallbackBaseUrl(source.baseUrl) ?: return primary
+        ThemeStoreDefaults.reportUnreachable(source.baseUrl)
+        val retry = fetchSource(source, fallbackBase)
+        if (retry.second.getOrNull()?.fromCache == false) {
+            ThemeStoreDefaults.reportReachable(fallbackBase)
+            return retry
+        }
+        return when {
+            primary.second.isSuccess -> primary
+            retry.second.isSuccess -> retry
+            else -> primary
+        }
+    }
+
+    private suspend fun fetchSource(
+        source: ThemeStoreSource,
+        baseUrl: String,
+    ): Pair<ThemeStoreSource, Result<ThemeCatalogLoad>> {
+        val credential = repository.accessToken(baseUrl, source.token)
+        val resolved = source.copy(baseUrl = baseUrl, token = credential.getOrNull() ?: source.token)
+        return resolved to credential.fold(
+            onSuccess = { repository.loadCatalog(baseUrl, it) },
+            onFailure = { Result.failure(it) },
+        )
     }
 
     fun setGridLayout(enabled: Boolean) {
@@ -1811,8 +1854,8 @@ class ThemeStoreViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun configuredSources(): List<ThemeStoreSource> {
         val result = mutableListOf<ThemeStoreSource>()
-        val builtInBase = ThemeStoreRepository.normalizeBaseUrl(ThemeStoreDefaults.BASE_URL)
-        val configuredBase = settings.themeStoreBaseUrl.ifBlank { ThemeStoreDefaults.BASE_URL }
+        val builtInBase = ThemeStoreRepository.normalizeBaseUrl(ThemeStoreDefaults.preferredBaseUrl())
+        val configuredBase = ThemeStoreDefaults.resolveConfiguredBaseUrl(settings.themeStoreBaseUrl)
         val defaultBase = ThemeStoreRepository.normalizeBaseUrl(configuredBase)
         if (defaultBase != null) {
             val defaultToken = when {
