@@ -154,6 +154,7 @@ class SettingsViewModel(
             val enableSwipeDismiss = repo.enableSwipeDismiss
             val pagerInterceptionMode = repo.pagerInterceptionMode
             val enableBlur = repo.enableBlur
+            val enableProgressiveBlur = repo.enableProgressiveBlur
             val enableFloatingBottomBar = repo.enableFloatingBottomBar
             val enableFloatingBottomBarBlur = repo.enableFloatingBottomBarBlur
             val enableNavigationBadge = repo.enableNavigationBadge
@@ -162,6 +163,7 @@ class SettingsViewModel(
             val moduleDescriptionMaxLines = repo.moduleDescriptionMaxLines
             val enableWebDebugging = repo.enableWebDebugging
             val autoDeleteModuleZip = repo.autoDeleteModuleZip
+            val autoDeleteUpdateApk = repo.autoDeleteUpdateApk
             val showFullStatus = repo.showFullStatus
             val hideHomeWarnings = repo.hideHomeWarnings
             val showAiHomeCard = repo.showAiHomeCard
@@ -267,6 +269,7 @@ homePillScale = HomeStatusStyle.coercePillScale(repo.homePillScale),
                     enableSwipeDismiss = enableSwipeDismiss,
                     pagerInterceptionMode = pagerInterceptionMode,
                     enableBlur = enableBlur,
+                    enableProgressiveBlur = enableProgressiveBlur,
                     enableFloatingBottomBar = enableFloatingBottomBar,
                     enableFloatingBottomBarBlur = enableFloatingBottomBarBlur,
                     enableNavigationBadge = enableNavigationBadge,
@@ -274,6 +277,7 @@ homePillScale = HomeStatusStyle.coercePillScale(repo.homePillScale),
                     moduleDescriptionMaxLines = moduleDescriptionMaxLines,
                     enableWebDebugging = enableWebDebugging,
                     autoDeleteModuleZip = autoDeleteModuleZip,
+                    autoDeleteUpdateApk = autoDeleteUpdateApk,
                     showFullStatus = showFullStatus,
                     hideHomeWarnings = hideHomeWarnings,
                     showAiHomeCard = showAiHomeCard,
@@ -934,6 +938,7 @@ homeStatusAlignment = HomeStatusAlignment.fromValue(repo.homeStatusAlignment).va
             uiMode = repo.uiMode.takeIf { options.interfaceMode },
             appIconId = exportedIconId.takeIf { options.appIcon },
             enableBlur = repo.enableBlur.takeIf { options.interfaceSwitches },
+            enableProgressiveBlur = repo.enableProgressiveBlur.takeIf { options.interfaceSwitches },
             enableFloatingBottomBar = repo.enableFloatingBottomBar.takeIf { options.interfaceSwitches },
             enableFloatingBottomBarBlur = repo.enableFloatingBottomBarBlur.takeIf { options.interfaceSwitches },
             enableNavigationBadge = repo.enableNavigationBadge.takeIf { options.interfaceSwitches },
@@ -1084,6 +1089,11 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
             // The chrome and behavior switches are global settings, not per light/dark appearance,
             // so both halves always carry the live values instead of what the state captured.
             enableBlur = if (options.interfaceSwitches) repo.enableBlur else null,
+            enableProgressiveBlur = if (options.interfaceSwitches) {
+                repo.enableProgressiveBlur
+            } else {
+                null
+            },
             enableFloatingBottomBar = if (options.interfaceSwitches) {
                 repo.enableFloatingBottomBar
             } else {
@@ -1299,6 +1309,7 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
         context: Context,
         state: SettingsUiState,
         options: ThemePackageOptions,
+        imported: ImportedTheme,
     ): SettingsUiState {
         var updated = state
         if (options.colors) {
@@ -1321,7 +1332,15 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
                 adaptiveThemeActive = false,
             )
         }
-        if (options.backgroundImage) {
+        // Packages that carry no background data hide the dialog option, so the previous
+        // wallpaper is cleared along with the rest of the old preset; a package with a
+        // background only keeps the current one when the user unticked the option.
+        val backgroundImageOptionAvailable =
+            imported.backgroundPath != null ||
+                imported.light?.backgroundPath != null ||
+                imported.dark?.backgroundPath != null ||
+                (!imported.isAdaptive && imported.data.hasBackground == false)
+        if (options.backgroundImage || !backgroundImageOptionAvailable) {
             wallpaperGeneration++
             ImageStorage.clear(context)
             runCatching { ImageStorage.systemWallpaperFile(context).delete() }
@@ -1347,12 +1366,27 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
                 customBackgroundScrimPercent = ImageStorage.DEFAULT_BACKGROUND_SCRIM,
             )
         }
-        if (options.homeCardImage) {
+        // Packages without card image data leave the import dialog without the option, so the
+        // previous image is cleared instead of being carried over the new theme. Keeping it is
+        // only possible when the package declares the group and the user unticked it.
+        val homeCardImageOptionAvailable =
+            imported.cardBackgroundPath != null ||
+                imported.light?.cardBackgroundPath != null ||
+                imported.dark?.cardBackgroundPath != null ||
+                (!imported.isAdaptive && imported.data.hasCardBackground == false)
+        if (options.homeCardImage || !homeCardImageOptionAvailable) {
             ImageStorage.clearHomeCardImage(context)
             repo.homeCardImagePath = ""
             updated = updated.copy(homeCardImagePath = "")
         }
-        if (options.stickers) {
+        // Same rule as the card image: a package without sticker data clears the previous
+        // stickers; the package stickers are imported afterwards when it has them.
+        val stickersOptionAvailable =
+            imported.stickerPaths.isNotEmpty() ||
+                imported.light?.stickerPaths?.isNotEmpty() == true ||
+                imported.dark?.stickerPaths?.isNotEmpty() == true ||
+                (!imported.isAdaptive && imported.data.homeCardStickerTransforms != null)
+        if (options.stickers || !stickersOptionAvailable) {
             ImageStorage.clearHomeCardSticker(context)
             repo.homeCardStickers = emptyList()
             updated = updated.copy(homeCardStickers = emptyList())
@@ -1388,6 +1422,33 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
             )
             updated = updated.copy(appIconId = BuiltinAppIcons.DEFAULT_ID)
         }
+        if (options.interfaceSwitches) {
+            // The import replaces the interface-switch group as a whole: switches the package
+            // does not carry fall back to the app defaults instead of surviving from the old
+            // preset, and the apply step below restores the package values that are present.
+            repo.enableBlur = false
+            repo.enableProgressiveBlur = false
+            repo.enableFloatingBottomBar = false
+            repo.enableFloatingBottomBarBlur = false
+            repo.enableNavigationBadge = true
+            updated = updated.copy(
+                enableBlur = false,
+                enableProgressiveBlur = false,
+                enableFloatingBottomBar = false,
+                enableFloatingBottomBarBlur = false,
+                enableNavigationBadge = true,
+            )
+        }
+        // The icon group has no always-on switch in the import dialog, so treat a package that
+        // carries no icon data as "no icons": clear the previous custom icons either way, and
+        // let the apply step import the package icons when it has them.
+        val packageHasBottomBarIcons =
+            imported.data.bottomBarIcons != null || imported.bottomBarIconPaths.isNotEmpty()
+        if (options.bottomBarIcons || !packageHasBottomBarIcons) {
+            ImageStorage.clearBottomBarIcons(context)
+            repo.bottomBarIcons = emptyMap()
+            updated = updated.copy(bottomBarIcons = emptyMap())
+        }
         if (updated != state) {
             // Push only the fields the final apply update below does not republish.
             _uiState.update {
@@ -1407,7 +1468,7 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
         clearFirst: Boolean = false,
     ) {
         val current = if (clearFirst) {
-            resetAppearanceForImport(context, _uiState.value, options)
+            resetAppearanceForImport(context, _uiState.value, options, imported)
         } else {
             _uiState.value
         }
@@ -1452,6 +1513,7 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
                 enablePredictiveBack = null,
                 enableSwipeDismiss = null,
                 enableBlur = null,
+                enableProgressiveBlur = null,
                 pagerInterceptionMode = null,
                 pageScale = null,
                 moduleDescriptionMaxLines = null,
@@ -1481,6 +1543,7 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
         var homeCardStickers = current.homeCardStickers
         var bottomBarIcons = current.bottomBarIcons
         var enableBlur = current.enableBlur
+        var enableProgressiveBlur = current.enableProgressiveBlur
         var pagerMode = current.pagerInterceptionMode
         var pageScale = current.pageScale
         var moduleMaxLines = current.moduleDescriptionMaxLines
@@ -1561,6 +1624,10 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
             data.enableBlur?.let {
                 repo.enableBlur = it
                 enableBlur = it
+            }
+            data.enableProgressiveBlur?.let {
+                repo.enableProgressiveBlur = it
+                enableProgressiveBlur = it
             }
             floatingBottomBar = data.enableFloatingBottomBar ?: current.enableFloatingBottomBar
             floatingBottomBarBlur = data.enableFloatingBottomBarBlur ?: current.enableFloatingBottomBarBlur
@@ -1781,6 +1848,7 @@ homePillScale = if (options.homeCardDisplay) source.homePillScale else null,
             predictiveBack = repo.enablePredictiveBack
             swipeDismiss = repo.enableSwipeDismiss
             enableBlur = repo.enableBlur
+            enableProgressiveBlur = repo.enableProgressiveBlur
             pagerMode = repo.pagerInterceptionMode
             pageScale = repo.pageScale
             moduleMaxLines = repo.moduleDescriptionMaxLines
@@ -1833,7 +1901,9 @@ homePillScale = HomeStatusStyle.coercePillScale(repo.homePillScale),
                 ) {
                     false
                 } else {
-                    it.useSystemWallpaper
+                    // The clear-first reset may already have turned the system wallpaper off
+                    // for a package without background data; keep that result, not the old state.
+                    current.useSystemWallpaper
                 },
                 systemWallpaperPath = if (
                     options.backgroundImage &&
@@ -1843,7 +1913,7 @@ homePillScale = HomeStatusStyle.coercePillScale(repo.homePillScale),
                 ) {
                     ""
                 } else {
-                    it.systemWallpaperPath
+                    current.systemWallpaperPath
                 },
                 enableFloatingBottomBar = floatingBottomBar,
                 enableFloatingBottomBarBlur = floatingBottomBarBlur,
@@ -1851,6 +1921,7 @@ homePillScale = HomeStatusStyle.coercePillScale(repo.homePillScale),
                 enablePredictiveBack = predictiveBack,
                 enableSwipeDismiss = swipeDismiss,
                 enableBlur = enableBlur,
+                enableProgressiveBlur = enableProgressiveBlur,
                 pagerInterceptionMode = pagerMode,
                 pageScale = pageScale,
                 moduleDescriptionMaxLines = moduleMaxLines,
@@ -2006,6 +2077,11 @@ homePillScale = if (options.homeCardDisplay) variant.data.homePillScale else nul
                 homeCardStickerTransforms = stickerData,
                 uiMode = if (options.interfaceMode) variant.data.uiMode else null,
                 enableBlur = if (options.interfaceSwitches) variant.data.enableBlur else null,
+                enableProgressiveBlur = if (options.interfaceSwitches) {
+                    variant.data.enableProgressiveBlur
+                } else {
+                    null
+                },
                 enableFloatingBottomBar = if (options.interfaceSwitches) {
                     variant.data.enableFloatingBottomBar
                 } else {
@@ -2542,6 +2618,11 @@ homePillScale = repo.homePillScale,
         repo.autoDeleteModuleZip = enabled
         _uiState.update { it.copy(autoDeleteModuleZip = enabled) }
     }
+
+    fun setAutoDeleteUpdateApk(enabled: Boolean) {
+        repo.autoDeleteUpdateApk = enabled
+        _uiState.update { it.copy(autoDeleteUpdateApk = enabled) }
+    }
     fun setAppIcon(context: Context, iconId: String) {
         val icon = BuiltinAppIcons.find(iconId)
         repo.appIconId = icon.id
@@ -2779,6 +2860,11 @@ homePillScale = repo.homePillScale,
         _uiState.update { it.copy(enableBlur = enabled) }
     }
 
+    fun setEnableProgressiveBlur(enabled: Boolean) {
+        repo.enableProgressiveBlur = enabled
+        _uiState.update { it.copy(enableProgressiveBlur = enabled) }
+    }
+
     fun setEnableFloatingBottomBar(enabled: Boolean) {
         repo.enableFloatingBottomBar = enabled
         _uiState.update { it.copy(enableFloatingBottomBar = enabled) }
@@ -3008,6 +3094,7 @@ homePillScale = repo.homePillScale,
             cardBackgroundAlphaPercent = cardBackgroundAlphaPercent,
             customBackgroundBlurPercent = customBackgroundBlurPercent,
             customBackgroundScrimPercent = customBackgroundScrimPercent,
+            enableProgressiveBlur = enableProgressiveBlur,
             enableFloatingBottomBar = enableFloatingBottomBar,
             enableFloatingBottomBarBlur = enableFloatingBottomBarBlur,
             enableNavigationBadge = enableNavigationBadge,
