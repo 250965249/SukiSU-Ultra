@@ -37,8 +37,9 @@ env:
   VARIANT: sukisu
   UPSTREAM_REPO: https://github.com/SukiSU-Ultra/SukiSU-Ultra.git
   UPSTREAM_REF: main
-  # From userspace/ksud/build.rs: VERSION_CODE = 37185 + `git rev-list --count HEAD`
-  VERSION_CODE_OFFSET: "37185"
+  # From userspace/ksud/build.rs, after the SukiSU-Nova rename:
+  #   VERSION_CODE = 30000 - 4001 + `git rev-list --count HEAD`
+  VERSION_CODE_OFFSET: "25999"
   # Empty = the stamp is derived from git. Set "<code>:<name>" only
   # for a variant whose userspace/ksud/build.rs pins the stamp.
   EXPECTED_STAMP: ""
