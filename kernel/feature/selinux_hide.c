@@ -15,6 +15,7 @@
 #include <linux/printk.h>
 #include <linux/string.h>
 #include <linux/fs.h>
+#include <linux/xattr.h>
 #include <asm-generic/errno-base.h>
 #include <net/genetlink.h>
 #include <linux/moduleparam.h>
