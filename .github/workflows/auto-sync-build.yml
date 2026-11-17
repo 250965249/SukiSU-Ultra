@@ -35,7 +35,7 @@ env:
   # favour too: they are not part of the ksud payload.
   PAYLOAD_IRRELEVANT_PREFIXES: "manager/"
   VARIANT: sukisu
-  UPSTREAM_REPO: https://github.com/SukiSU-Ultra/SukiSU-Ultra.git
+  UPSTREAM_REPO: https://github.com/SukiSU-Nova/SukiSU-Nova.git
   UPSTREAM_REF: main
   # From userspace/ksud/build.rs, after the SukiSU-Nova rename:
   #   VERSION_CODE = 30000 - 4001 + `git rev-list --count HEAD`
